@@ -24,8 +24,13 @@ for d in [UPLOAD_DIR, OUTPUT_DIR]:
 def enhance_image(img_path):
     img = cv2.imread(img_path)
     if img is None: return Image.open(img_path)
+    
+    # Check image size; only resize if it's very small
+    h, w = img.shape[:2]
+    if w < 1000:
+        img = cv2.resize(img, None, fx=1.2, fy=1.2, interpolation=cv2.INTER_LINEAR)
+        
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    gray = cv2.resize(gray, None, fx=1.2, fy=1.2, interpolation=cv2.INTER_LINEAR)
     _, thr = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     return Image.fromarray(thr)
 
