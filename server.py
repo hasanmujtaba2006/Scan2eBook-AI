@@ -65,31 +65,24 @@ def enhance_image_for_ocr(img_path):
 def clean_text_with_ai(raw_text):
     if not raw_text.strip(): return ""
     
+    # We use a more direct prompt to reduce AI "thinking" time
     prompt = f"""
-    You are a professional book proofreader. Restore this messy OCR text to 100% accuracy.
+    Act as a strict OCR cleaner. Fix typos and format as HTML.
+    Do not change the wording. Only fix errors.
+    Return ONLY <body> content.
     
-    TASKS:
-    1. Fix character swaps (e.g., 'cl' -> 'd', 'rn' -> 'm').
-    2. Rejoin words split by line breaks.
-    3. Remove hallucinated noise characters like |, _, or random dots.
-    4. Apply logical paragraph breaks (<p>) and chapter headings (<h2>).
-    5. Maintain original tone exactly—do not rewrite.
-    
-    OUTPUT: Return ONLY HTML body content.
-    
-    TEXT:
-    {raw_text}
+    TEXT: {raw_text}
     """
     
     try:
         completion = client.chat.completions.create(
-            model="llama3-70b-8192", # Switched to 70B for much higher intelligence
+            model="llama3-70b-8192", 
             messages=[{"role": "user", "content": prompt}],
-            temperature=0 # Zero temperature ensures accuracy over creativity
+            temperature=0,
+            max_tokens=2000 # Limit the response length to save time
         )
         return completion.choices[0].message.content
     except Exception as e:
-        print(f"AI Error: {e}")
         return f"<p>{raw_text}</p>"
 
 # --- THE BACKGROUND ENGINE ---
