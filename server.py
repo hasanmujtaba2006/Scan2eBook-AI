@@ -15,7 +15,7 @@ load_dotenv() # This reads your .env file
 
 # --- 2. CONFIGURATION ---
 GROQ_API_KEY = os.getenv("GROQ_API_KEY") # Get key securely
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+#pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 # Check if key exists
 if not GROQ_API_KEY:
