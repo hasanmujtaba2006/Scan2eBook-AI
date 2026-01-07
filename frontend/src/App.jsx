@@ -34,10 +34,11 @@ function App() {
     formData.append("title", bookTitle || "My Scanned Book");
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/convert-to-epub/", {
-        method: "POST",
-        body: formData,
-      });
+      // The backend's real name is 'convert-to-epub'
+      const response = await fetch('https://scan2ebook-ai.onrender.com/convert-to-epub/', {
+      method: 'POST',
+      body: formData,
+    });
 
       if (response.ok) {
         const blob = await response.blob();
