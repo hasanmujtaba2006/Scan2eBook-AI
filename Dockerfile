@@ -1,6 +1,6 @@
 FROM python:3.9-slim-bullseye
 
-# Install minimal Tesseract, language packs, and light-weight system dependencies
+# Install only essential Tesseract and specific language data
 RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-urd \
@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Ensure we use headless OpenCV in requirements to save memory
+# Install Python requirements
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
