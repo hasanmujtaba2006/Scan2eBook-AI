@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+python-multipart
+opencv-python-headless
+pytesseract
+groq
+EbookLib
+python-dotenv
+numpy
+requests
+jinja2
