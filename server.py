@@ -3,6 +3,8 @@ import shutil
 import uuid
 import zipfile
 import uvicorn
+import cv2
+import numpy as np
 from fastapi import FastAPI, File, UploadFile, BackgroundTasks, HTTPException, Form
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -35,20 +37,62 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
 for d in [UPLOAD_DIR, OUTPUT_DIR]:
     if not os.path.exists(d): os.makedirs(d)
 
+# --- NEW: IMAGE ENHANCEMENT FUNCTION ---
+def enhance_image_for_ocr(img_path):
+    """
+    Uses Computer Vision to remove shadows and make text pop.
+    """
+    # Read image
+    image = cv2.imread(img_path)
+    if image is None:
+        return Image.open(img_path) # Fallback to PIL if OpenCV fails
+
+    # 1. Convert to Grayscale
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    
+    # 2. Rescale (Zoom in 2x) for better character recognition
+    gray = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+    
+    # 3. Adaptive Thresholding (Removes shadows and page curves)
+    processed_img = cv2.adaptiveThreshold(
+        gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
+    )
+    
+    # Convert back to PIL format for Tesseract
+    return Image.fromarray(processed_img)
+
+# --- UPDATED: HIGH-ACCURACY AI PROOFREADER ---
 def clean_text_with_ai(raw_text):
     if not raw_text.strip(): return ""
-    prompt = f"Fix OCR errors and format as clean HTML paragraphs/headings: {raw_text}"
+    
+    prompt = f"""
+    You are a professional book proofreader. Restore this messy OCR text to 100% accuracy.
+    
+    TASKS:
+    1. Fix character swaps (e.g., 'cl' -> 'd', 'rn' -> 'm').
+    2. Rejoin words split by line breaks.
+    3. Remove hallucinated noise characters like |, _, or random dots.
+    4. Apply logical paragraph breaks (<p>) and chapter headings (<h2>).
+    5. Maintain original tone exactly—do not rewrite.
+    
+    OUTPUT: Return ONLY HTML body content.
+    
+    TEXT:
+    {raw_text}
+    """
+    
     try:
         completion = client.chat.completions.create(
-            model="llama3-8b-8192", 
+            model="llama3-70b-8192", # Switched to 70B for much higher intelligence
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.1 
+            temperature=0 # Zero temperature ensures accuracy over creativity
         )
         return completion.choices[0].message.content
-    except:
+    except Exception as e:
+        print(f"AI Error: {e}")
         return f"<p>{raw_text}</p>"
 
-# --- BACKGROUND PROCESS ---
+# --- THE BACKGROUND ENGINE ---
 def process_epub_conversion(task_id: str, file_paths: list, book_title: str, cover_path: str = None):
     try:
         tasks[task_id]['status'] = 'processing'
@@ -57,39 +101,42 @@ def process_epub_conversion(task_id: str, file_paths: list, book_title: str, cov
         meta_inf_dir = os.path.join(work_dir, "META-INF")
         os.makedirs(oebps_dir); os.makedirs(meta_inf_dir)
 
-        # 1. Mimetype & Structure
+        # 1. Structure Setup
         with open(os.path.join(work_dir, "mimetype"), "w") as f: f.write("application/epub+zip")
         with open(os.path.join(meta_inf_dir, "container.xml"), "w") as f:
              f.write('<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>')
         
-        # 2. Handle Cover Image
-        manifest_cover = ""
-        spine_cover = ""
-        meta_cover = ""
+        # 2. Handle Cover
+        manifest_cover, spine_cover, meta_cover = "", "", ""
         if cover_path:
             shutil.copy(cover_path, os.path.join(oebps_dir, "cover.jpg"))
-            manifest_cover = '<item id="cover-img" href="cover.jpg" media-type="image/jpeg"/>\n'
-            manifest_cover += '<item id="cover-page" href="cover.html" media-type="application/xhtml+xml"/>\n'
+            manifest_cover = '<item id="cover-img" href="cover.jpg" media-type="image/jpeg"/>\n<item id="cover-page" href="cover.html" media-type="application/xhtml+xml"/>\n'
             spine_cover = '<itemref idref="cover-page"/>\n'
             meta_cover = '<meta name="cover" content="cover-img"/>'
             with open(os.path.join(oebps_dir, "cover.html"), "w") as f:
                 f.write('<?xml version="1.0" encoding="utf-8"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>Cover</title></head><body style="margin:0;text-align:center;"><img src="cover.jpg" style="height:100%;max-width:100%;"/></body></html>')
 
-        # 3. Content Loop
+        # 3. Enhanced Processing Loop
         manifest_items = manifest_cover + '<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/><item id="css" href="styles.css" media-type="text/css"/>\n'
         spine_items = spine_cover
         
         for i, img_path in enumerate(file_paths):
             index = i + 1
             tasks[task_id]['progress'] = int(10 + ((i / len(file_paths)) * 80))
-            tasks[task_id]['message'] = f"AI Cleaning Page {index}..."
             
-            with Image.open(img_path) as img:
-                img = img.convert('RGB')
-                img.thumbnail((1500, 1500))
-                text = pytesseract.image_to_string(img)
+            # A. Image Enhancement
+            tasks[task_id]['message'] = f"Enhancing Image {index}..."
+            enhanced_img = enhance_image_for_ocr(img_path)
             
+            # B. Optimized OCR
+            tasks[task_id]['message'] = f"Reading Text {index}..."
+            custom_config = r'--oem 3 --psm 3'
+            text = pytesseract.image_to_string(enhanced_img, config=custom_config)
+            
+            # C. Deep AI Proofread
+            tasks[task_id]['message'] = f"AI Deep Cleaning Page {index}..."
             html_body = clean_text_with_ai(text)
+            
             page_name = f"page_{index}.html"
             with open(os.path.join(oebps_dir, page_name), "w", encoding="utf-8") as f:
                 f.write(f"<?xml version='1.0' encoding='utf-8'?><html xmlns='http://www.w3.org/1999/xhtml'><head><link href='styles.css' rel='stylesheet' type='text/css'/></head><body>{html_body}</body></html>")
@@ -98,7 +145,7 @@ def process_epub_conversion(task_id: str, file_paths: list, book_title: str, cov
             spine_items += f'<itemref idref="p{index}"/>\n'
 
         # 4. Packaging
-        with open(os.path.join(oebps_dir, "styles.css"), "w") as f: f.write("body { font-family: serif; margin: 5%; }")
+        with open(os.path.join(oebps_dir, "styles.css"), "w") as f: f.write("body { font-family: serif; margin: 5%; line-height: 1.6; }")
         with open(os.path.join(oebps_dir, "content.opf"), "w") as f:
             f.write(f'<?xml version="1.0" encoding="utf-8"?><package version="2.0" xmlns="http://www.idpf.org/2007/opf" unique-identifier="id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>{book_title}</dc:title><dc:language>en</dc:language>{meta_cover}</metadata><manifest>{manifest_items}</manifest><spine toc="ncx">{spine_items}</spine></package>')
         with open(os.path.join(oebps_dir, "toc.ncx"), "w") as f:
