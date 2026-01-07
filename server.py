@@ -1,16 +1,10 @@
-import os
-import shutil
-import uuid
-import zipfile
-import uvicorn
-import cv2
+import os, shutil, uuid, zipfile, uvicorn, cv2
 import numpy as np
-from fastapi import FastAPI, File, UploadFile, BackgroundTasks, HTTPException, Form
+from fastapi import FastAPI, File, UploadFile, BackgroundTasks, Form
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 import pytesseract
-
 from groq import Groq
 from dotenv import load_dotenv
 
@@ -18,144 +12,101 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 app = FastAPI()
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], 
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 tasks = {}
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
-
-for d in [UPLOAD_DIR, OUTPUT_DIR]:
+for d in [UPLOAD_DIR, OUTPUT_DIR]: 
     if not os.path.exists(d): os.makedirs(d)
 
-def enhance_image_for_ocr(img_path):
-    image = cv2.imread(img_path)
-    if image is None: return Image.open(img_path)
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    # 1.2x resize is the "sweet spot" for speed + accuracy
+def enhance_image(img_path):
+    img = cv2.imread(img_path)
+    if img is None: return Image.open(img_path)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     gray = cv2.resize(gray, None, fx=1.2, fy=1.2, interpolation=cv2.INTER_LINEAR)
-    _, processed_img = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    return Image.fromarray(processed_img)
+    _, thr = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    return Image.fromarray(thr)
 
 def clean_text_with_ai(raw_text):
     if not raw_text.strip(): return ""
-    
-    # Prompt updated for multilingual script handling
+    # AI prompt for direction-aware multilingual cleaning
     prompt = f"""
-    You are a professional multilingual book proofreader. 
-    Detect the script (English, Urdu, Hindi, or Arabic).
-    
-    TASKS:
-    1. Fix OCR character errors for the specific script.
-    2. DO NOT TRANSLATE. Keep the original language.
-    3. Use <p dir="rtl"> for Urdu/Arabic and <p dir="ltr"> for English/Hindi.
-    4. Return ONLY HTML <body> tags.
-    
+    Fix OCR errors in this text (English, Urdu, Hindi, or Arabic). 
+    DO NOT TRANSLATE.
+    Wrap Urdu/Arabic in <p dir="rtl" style="text-align:right;">.
+    Wrap English/Hindi in <p dir="ltr" style="text-align:left;">.
+    Return ONLY HTML tags.
     TEXT: {raw_text}
     """
-    
     try:
-        completion = client.chat.completions.create(
-            model="llama3-8b-8192", 
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0
-        )
-        return completion.choices[0].message.content
-    except:
-        return f"<p>{raw_text}</p>"
+        res = client.chat.completions.create(model="llama3-8b-8192", messages=[{"role": "user", "content": prompt}], temperature=0)
+        return res.choices[0].message.content
+    except: return f"<p>{raw_text}</p>"
 
-def process_epub_conversion(task_id: str, file_paths: list, book_title: str, cover_path: str = None):
+def process_task(task_id, paths, title, cover_p):
     try:
         tasks[task_id]['status'] = 'processing'
-        work_dir = os.path.join(BASE_DIR, "temp", task_id)
-        oebps_dir = os.path.join(work_dir, "OEBPS")
-        meta_inf_dir = os.path.join(work_dir, "META-INF")
-        os.makedirs(oebps_dir); os.makedirs(meta_inf_dir)
+        work = os.path.join(BASE_DIR, "temp", task_id)
+        oebps = os.path.join(work, "OEBPS"); meta = os.path.join(work, "META-INF")
+        os.makedirs(oebps); os.makedirs(meta)
 
-        # Basic EPUB Files
-        with open(os.path.join(work_dir, "mimetype"), "w") as f: f.write("application/epub+zip")
-        with open(os.path.join(meta_inf_dir, "container.xml"), "w") as f:
-             f.write('<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>')
+        with open(os.path.join(work, "mimetype"), "w") as f: f.write("application/epub+zip")
         
-        # Cover Handling
-        manifest_cover, spine_cover, meta_cover = "", "", ""
-        if cover_path:
-            shutil.copy(cover_path, os.path.join(oebps_dir, "cover.jpg"))
-            manifest_cover = '<item id="cover-img" href="cover.jpg" media-type="image/jpeg"/>\n<item id="cover-page" href="cover.html" media-type="application/xhtml+xml"/>\n'
-            spine_cover = '<itemref idref="cover-page"/>\n'
-            meta_cover = '<meta name="cover" content="cover-img"/>'
-            with open(os.path.join(oebps_dir, "cover.html"), "w") as f:
-                f.write('<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><body><img src="cover.jpg" style="width:100%"/></body></html>')
-
-        manifest_items = manifest_cover + '<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/><item id="css" href="styles.css" media-type="text/css"/>\n'
-        spine_items = spine_cover
+        manifest = '<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>'
+        spine = ""
         
-        for i, img_path in enumerate(file_paths):
-            index = i + 1
-            tasks[task_id]['progress'] = int(10 + ((i / len(file_paths)) * 80))
-            tasks[task_id]['message'] = f"Reading Multi-Script Page {index}..."
-            
-            enhanced_img = enhance_image_for_ocr(img_path)
-            
-            # MULTI-LANGUAGE OCR CONFIG
-            text = pytesseract.image_to_string(enhanced_img, lang='eng+urd+hin+ara', config='--oem 3 --psm 3')
-            
-            html_body = clean_text_with_ai(text)
-            page_name = f"page_{index}.html"
-            with open(os.path.join(oebps_dir, page_name), "w", encoding="utf-8") as f:
-                f.write(f"<html><head><link href='styles.css' rel='stylesheet'/></head><body>{html_body}</body></html>")
-            
-            manifest_items += f'<item id="p{index}" href="{page_name}" media-type="application/xhtml+xml"/>\n'
-            spine_items += f'<itemref idref="p{index}"/>\n'
+        if cover_p:
+            shutil.copy(cover_p, os.path.join(oebps, "cover.jpg"))
+            manifest += '<item id="c-i" href="cover.jpg" media-type="image/jpeg"/><item id="c-p" href="cover.html" media-type="application/xhtml+xml"/>'
+            spine = '<itemref idref="c-p"/>'
+            with open(os.path.join(oebps, "cover.html"), "w") as f: f.write('<html><body><img src="cover.jpg" style="width:100%"/></body></html>')
 
-        # Finalize
-        with open(os.path.join(oebps_dir, "styles.css"), "w") as f: f.write("body { font-family: serif; margin: 5%; line-height: 1.6; }")
-        with open(os.path.join(oebps_dir, "content.opf"), "w") as f:
-            f.write(f'<package version="2.0" xmlns="http://www.idpf.org/2007/opf"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>{book_title}</dc:title>{meta_cover}</metadata><manifest>{manifest_items}</manifest><spine toc="ncx">{spine_items}</spine></package>')
-        with open(os.path.join(oebps_dir, "toc.ncx"), "w") as f:
-            f.write('<?xml version="1.0"?><ncx version="2005-1" xmlns="http://www.daisy.org/z3986/2005/ncx/"><navMap><navPoint id="n1"><navLabel><text>Start</text></navLabel><content src="page_1.html"/></navPoint></navMap></ncx>')
+        for i, p in enumerate(paths):
+            tasks[task_id]['progress'] = int(10 + (i/len(paths)*80))
+            tasks[task_id]['message'] = f"Processing Page {i+1}..."
+            enhanced = enhance_image(p)
+            # Support multiple languages
+            raw = pytesseract.image_to_string(enhanced, lang='eng+urd+hin+ara', config='--oem 3 --psm 3')
+            clean = clean_text_with_ai(raw)
+            with open(os.path.join(oebps, f"p{i}.html"), "w") as f: f.write(f"<html><body>{clean}</body></html>")
+            manifest += f'<item id="p{i}" href="p{i}.html" media-type="application/xhtml+xml"/>'
+            spine += f'<itemref idref="p{i}"/>'
 
-        output_fn = f"{task_id}.epub"
-        final_p = os.path.join(OUTPUT_DIR, output_fn)
-        with zipfile.ZipFile(final_p, 'w') as epub:
-            epub.write(os.path.join(work_dir, "mimetype"), "mimetype", compress_type=zipfile.ZIP_STORED)
-            for r, _, f_list in os.walk(work_dir):
-                for f in f_list:
-                    if f == "mimetype": continue
-                    abs_p = os.path.join(r, f)
-                    epub.write(abs_p, os.path.relpath(abs_p, work_dir), compress_type=zipfile.ZIP_DEFLATED)
+        with open(os.path.join(oebps, "content.opf"), "w") as f:
+            f.write(f'<package version="2.0" xmlns="http://www.idpf.org/2007/opf"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>{title}</dc:title></metadata><manifest>{manifest}</manifest><spine toc="ncx">{spine}</spine></package>')
+        with open(os.path.join(oebps, "toc.ncx"), "w") as f: f.write('<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><navMap><navPoint id="n1"><navLabel><text>Start</text></navLabel><content src="p0.html"/></navPoint></navMap></ncx>')
+
+        out_fn = f"{task_id}.epub"
+        with zipfile.ZipFile(os.path.join(OUTPUT_DIR, out_fn), 'w') as z:
+            z.write(os.path.join(work, "mimetype"), "mimetype", compress_type=zipfile.ZIP_STORED)
+            for r, _, fls in os.walk(work):
+                for fl in fls:
+                    if fl == "mimetype": continue
+                    z.write(os.path.join(r, fl), os.path.relpath(os.path.join(r, fl), work))
         
-        shutil.rmtree(work_dir)
-        tasks[task_id].update({'status': 'completed', 'progress': 100, 'download_url': f"/download/{output_fn}"})
-    except Exception as e:
-        tasks[task_id].update({'status': 'failed', 'message': str(e)})
+        tasks[task_id].update({'status': 'completed', 'progress': 100, 'download_url': f"/download/{out_fn}"})
+    except Exception as e: tasks[task_id].update({'status': 'failed', 'message': str(e)})
 
 @app.post("/upload")
-async def upload(background_tasks: BackgroundTasks, files: list[UploadFile] = File(...), cover: UploadFile = File(None), title: str = Form("My Multilingual Book")):
-    t_id = str(uuid.uuid4())
-    t_dir = os.path.join(UPLOAD_DIR, t_id); os.makedirs(t_dir)
+async def upload(bg: BackgroundTasks, files: list[UploadFile] = File(...), cover: UploadFile = File(None), title: str = Form("Book")):
+    tid = str(uuid.uuid4()); tdir = os.path.join(UPLOAD_DIR, tid); os.makedirs(tdir)
     paths = []
     for f in files:
-        p = os.path.join(t_dir, f.filename)
-        with open(p, "wb") as buf: buf.write(f.file.read())
+        p = os.path.join(tdir, f.filename)
+        with open(p, "wb") as b: b.write(f.file.read())
         paths.append(p)
-    c_path = None
+    cp = None
     if cover:
-        c_path = os.path.join(t_dir, "cover.jpg")
-        with open(c_path, "wb") as buf: buf.write(cover.file.read())
-    tasks[t_id] = {'status': 'queued', 'progress': 0, 'message': 'Queued...'}
-    background_tasks.add_task(process_epub_conversion, t_id, paths, title, c_path)
-    return {"task_id": t_id}
+        cp = os.path.join(tdir, "c.jpg")
+        with open(cp, "wb") as b: b.write(cover.file.read())
+    tasks[tid] = {'status': 'queued', 'progress': 0}
+    bg.add_task(process_task, tid, paths, title, cp)
+    return {"task_id": tid}
 
-@app.get("/status/{task_id}")
-async def status(task_id: str): return tasks.get(task_id)
+@app.get("/status/{tid}")
+async def status(tid: str): return tasks.get(tid)
 
 @app.get("/download/{fn}")
-async def download(fn: str): return FileResponse(os.path.join(OUTPUT_DIR, fn), filename=fn, media_type='application/epub+zip')
+async def dl(fn: str): return FileResponse(os.path.join(OUTPUT_DIR, fn), filename=fn)
