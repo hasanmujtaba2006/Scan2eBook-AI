@@ -1,0 +1,166 @@
+/* --- 1. FORCE SCREEN CENTERING --- */
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: #242424;
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+}
+
+#root {
+  /* This ensures the React "Root" takes up the whole screen */
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center; /* Center Horizontally */
+  align-items: center;     /* Center Vertically */
+}
+
+/* --- 2. COMPONENT STYLES --- */
+
+.container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.card {
+  background: #1a1a1a;
+  padding: 2.5rem;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  border: 1px solid #333;
+  width: 100%;
+  max-width: 480px; /* Limits width so it looks like a nice card */
+  text-align: center;
+}
+
+h1 {
+  font-size: 2.2em;
+  margin-top: 0;
+  margin-bottom: 0.2em;
+  background: linear-gradient(90deg, #646cff, #9f5afd);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.subtitle { color: #888; margin-bottom: 2rem; font-size: 0.95rem; }
+
+/* INPUT FIELDS */
+.input-group {
+  text-align: left;
+  margin-bottom: 15px;
+}
+.input-group label {
+  display: block;
+  margin-bottom: 6px;
+  color: #ccc;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.text-input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #444;
+  background: #2a2a2a;
+  color: white;
+  font-size: 1rem;
+  box-sizing: border-box; /* Prevents padding from breaking width */
+  transition: border-color 0.2s;
+}
+.text-input:focus {
+  border-color: #646cff;
+  outline: none;
+}
+
+/* UPLOAD ZONE */
+.upload-zone {
+  margin: 20px 0;
+  padding: 25px;
+  border: 2px dashed #444;
+  border-radius: 8px;
+  background: #232323;
+  color: #888;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.upload-zone:hover { border-color: #646cff; }
+input[type="file"] { font-size: 0.9rem; color: #ccc; }
+
+/* PREVIEW GRID */
+.preview-grid {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 10px 0;
+  margin-bottom: 20px;
+  justify-content: center; /* Centers thumbnails if there are only a few */
+}
+.preview-item img {
+  width: 60px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 2px solid #555;
+}
+.preview-item span {
+  display: block;
+  font-size: 0.7rem;
+  color: #666;
+  margin-top: 4px;
+}
+
+/* BUTTONS */
+.primary-btn {
+  background-color: #646cff;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  font-size: 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  width: 100%;
+  transition: background 0.2s;
+}
+.primary-btn:hover { background-color: #535bf2; }
+.primary-btn:disabled { background-color: #333; cursor: not-allowed; opacity: 0.7; }
+
+.download-btn {
+  display: block;
+  width: 100%;
+  background-color: #4CAF50;
+  color: white;
+  padding: 12px 0;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: bold;
+  margin-top: 15px;
+  text-align: center;
+  box-sizing: border-box;
+}
+.download-btn:hover { background-color: #45a049; }
+
+.reset-btn {
+  display: block;
+  margin: 15px auto 0;
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 0.9rem;
+}
+
+/* SPINNER */
+.spinner {
+  border: 3px solid #333;
+  border-top: 3px solid #646cff;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 10px;
+}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }

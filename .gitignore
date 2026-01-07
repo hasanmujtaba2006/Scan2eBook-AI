@@ -1,0 +1,16 @@
+# Secrets
+.env
+
+# Python junk
+__pycache__/
+*.pyc
+venv/
+
+# Node/Frontend junk (Too heavy to upload)
+node_modules/
+dist/
+
+# Temporary files
+temp_*
+*.epub
+download.epub

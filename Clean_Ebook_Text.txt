@@ -1,0 +1,12 @@
+Other: Common Casting Defects:
+- Defect: Cause and Explanation
+
+- Casting solidifies too slowly due to low pouring temperature, slow pouring, or thin sections.
+
+Misruns: These occur when two metal portions meet but do not fuse.
+
+Cold Shuts: This happens when two metal portions meet but do not fuse, and gas bubbles are trapped in the cast.
+
+Cold Shots: These are caused by molten metal splashing into the mold, or gas trapped in the mold/core, or mold/core shift.
+
+Welding: Gas can cause penetration, or mold/core shift.
