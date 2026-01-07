@@ -71,12 +71,16 @@ def process_epub_conversion(task_id: str, file_paths: list, book_title: str):
         os.makedirs(oebps_dir)
         os.makedirs(meta_inf_dir)
 
-        # Create Static EPUB Files
-        with open(os.path.join(work_dir, "mimetype"), "w") as f: f.write("application/epub+zip")
+        # 1. Create the 'mimetype' file - MUST be plain text, no newline
+        with open(os.path.join(work_dir, "mimetype"), "w") as f: 
+            f.write("application/epub+zip")
+
+        # 2. Create Static EPUB Structure
         with open(os.path.join(meta_inf_dir, "container.xml"), "w") as f:
              f.write('<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>')
+        
         with open(os.path.join(oebps_dir, "styles.css"), "w") as f:
-            f.write("body { font-family: serif; margin: 5%; line-height: 1.6; } h1, h2 { text-align: center; }")
+            f.write("body { font-family: serif; margin: 5%; line-height: 1.6; } h1, h2 { text-align: center; } p { text-align: justify; }")
 
         manifest_items = '<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>\n'
         manifest_items += '<item id="style" href="styles.css" media-type="text/css"/>\n'
@@ -107,26 +111,39 @@ def process_epub_conversion(task_id: str, file_paths: list, book_title: str):
             spine_items += f'<itemref idref="page_{index}"/>\n'
 
         tasks[task_id]['message'] = "Packaging EPUB..."
+        
+        # 3. Finalize Manifest (OPF)
         opf_content = f"""<?xml version="1.0" encoding="utf-8"?>
-<package version="2.0" xmlns="http://www.idpf.org/2007/opf">
-  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>{book_title}</dc:title><dc:language>en</dc:language></metadata>
+<package version="2.0" xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookId">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>{book_title}</dc:title><dc:language>en</dc:language><dc:identifier id="BookId">{task_id}</dc:identifier></metadata>
   <manifest>{manifest_items}</manifest>
   <spine toc="ncx">{spine_items}</spine>
 </package>"""
         with open(os.path.join(oebps_dir, "content.opf"), "w", encoding="utf-8") as f: f.write(opf_content)
 
+        # 4. Finalize Navigation (NCX)
         with open(os.path.join(oebps_dir, "toc.ncx"), "w", encoding="utf-8") as f:
-            f.write(f'<?xml version="1.0"?><ncx version="2005-1" xmlns="http://www.daisy.org/z3986/2005/ncx/"><head><meta name="dtb:uid" content="BookId"/></head><docTitle><text>{book_title}</text></docTitle><navMap><navPoint id="p1" playOrder="1"><navLabel><text>Start</text></navLabel><content src="page_1.html"/></navPoint></navMap></ncx>')
+            f.write(f'<?xml version="1.0"?><ncx version="2005-1" xmlns="http://www.daisy.org/z3986/2005/ncx/"><head><meta name="dtb:uid" content="{task_id}"/></head><docTitle><text>{book_title}</text></docTitle><navMap><navPoint id="p1" playOrder="1"><navLabel><text>Start</text></navLabel><content src="page_1.html"/></navPoint></navMap></ncx>')
 
+        # 5. STRICT EPUB ZIPPING
         output_filename = f"{task_id}.epub"
         final_path = os.path.join(OUTPUT_DIR, output_filename)
+        
         with zipfile.ZipFile(final_path, 'w') as epub:
-            epub.write(os.path.join(work_dir, "mimetype"), "mimetype", compress_type=zipfile.ZIP_STORED)
+            # RULE: mimetype must be first and UNCOMPRESSED
+            mimetype_path = os.path.join(work_dir, "mimetype")
+            epub.write(mimetype_path, "mimetype", compress_type=zipfile.ZIP_STORED)
+            
+            # RULE: Add everything else with compression
             for root, _, files in os.walk(work_dir):
                 for file in files:
-                    if file == "mimetype": continue
-                    f_path = os.path.join(root, file)
-                    epub.write(f_path, os.path.relpath(f_path, work_dir), compress_type=zipfile.ZIP_DEFLATED)
+                    file_path = os.path.join(root, file)
+                    if file == "mimetype":
+                        continue  # Already added
+                    
+                    # Create internal zip path (relative to work_dir)
+                    arcname = os.path.relpath(file_path, work_dir)
+                    epub.write(file_path, arcname, compress_type=zipfile.ZIP_DEFLATED)
 
         shutil.rmtree(work_dir)
         tasks[task_id].update({'status': 'completed', 'progress': 100, 'download_url': f"/download/{output_filename}"})
@@ -140,7 +157,7 @@ def process_epub_conversion(task_id: str, file_paths: list, book_title: str):
 async def upload_files(
     background_tasks: BackgroundTasks, 
     files: list[UploadFile] = File(...), 
-    title: str = Form("My Scanned Book") # Now accepts title from React
+    title: str = Form("My Scanned Book")
 ):
     task_id = str(uuid.uuid4())
     task_upload_dir = os.path.join(UPLOAD_DIR, task_id)
@@ -156,7 +173,6 @@ async def upload_files(
     background_tasks.add_task(process_epub_conversion, task_id, file_paths, title)
     return {"task_id": task_id}
 
-# FORWARDING OLD URL TO NEW ONE (Fixes your 404 errors)
 @app.post("/convert-to-epub/")
 async def legacy_endpoint():
     return RedirectResponse(url="/upload", status_code=307)
@@ -167,7 +183,7 @@ async def get_status(task_id: str):
 
 @app.get("/download/{filename}")
 async def download_file(filename: str):
-    return FileResponse(os.path.join(OUTPUT_DIR, filename), filename=filename)
+    return FileResponse(os.path.join(OUTPUT_DIR, filename), filename=filename, media_type='application/epub+zip')
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
