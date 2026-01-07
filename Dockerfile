@@ -1,10 +1,15 @@
 FROM python:3.9-slim
 
-# Install only the essential Tesseract OCR engine
+# Install Tesseract engine AND the specific language packs
 RUN apt-get update && apt-get install -y \
     tesseract-ocr \
+    tesseract-ocr-urd \
+    tesseract-ocr-hin \
+    tesseract-ocr-ara \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
-
+# Note: 'urd' is Urdu, 'hin' is Hindi, 'ara' is Arabic
 WORKDIR /app
 
 # Copy and install requirements first (better for caching)
