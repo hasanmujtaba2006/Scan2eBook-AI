@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import './App.css'
 
-// CONFIGURATION: Ensure this matches your Render URL exactly
 const API_BASE_URL = "https://scan2ebook-ai.onrender.com"; 
 
 function App() {
@@ -9,12 +8,15 @@ function App() {
   const [cover, setCover] = useState(null);
   const [coverPreview, setCoverPreview] = useState(null);
   const [title, setTitle] = useState("");
-  const [status, setStatus] = useState("idle"); // idle, processing, success, error
+  const [status, setStatus] = useState("idle");
   const [progress, setProgress] = useState(0);
   const [msg, setMsg] = useState("");
   const [dlUrl, setDlUrl] = useState("");
+  
+  // Preview States
+  const [editableContent, setEditableContent] = useState("");
+  const [isPreviewing, setIsPreviewing] = useState(false);
 
-  // Handle Cover Image Selection
   const handleCover = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -23,146 +25,113 @@ function App() {
     }
   };
 
-  // Handle Page Selection
-  const handleFiles = (e) => {
-    const selected = Array.from(e.target.files);
-    setFiles(selected);
+  const handleGetPreview = async () => {
+    if (!files.length) return;
+    setStatus("processing");
+    setMsg("Analyzing first page for preview...");
+    
+    const formData = new FormData();
+    formData.append("file", files[0]);
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/preview-page`, { method: 'POST', body: formData });
+      const data = await res.json();
+      setEditableContent(data.html);
+      setIsPreviewing(true);
+      setStatus("idle");
+    } catch (e) {
+      setStatus("error");
+      setMsg("Preview failed.");
+    }
   };
 
   const handleUpload = async () => {
     if (!files.length) return;
-
     setStatus("processing");
-    setProgress(0);
-    setMsg("Initializing upload...");
+    setMsg("Starting full conversion...");
 
     const formData = new FormData();
     files.forEach(f => formData.append("files", f));
     if (cover) formData.append("cover", cover);
-    formData.append("title", title || "My Scanned Book");
+    formData.append("title", title || "My Urdu eBook");
 
     try {
-      // 1. Send the files to get a task_id
-      const res = await fetch(`${API_BASE_URL}/upload`, { 
-        method: 'POST', 
-        body: formData 
-      });
-
-      if (!res.ok) throw new Error("Server upload failed");
-
+      const res = await fetch(`${API_BASE_URL}/upload`, { method: 'POST', body: formData });
       const { task_id } = await res.json();
       
-      // 2. Poll the status endpoint every 3 seconds
-      // Using 3 seconds to give the server breathing room for image enhancement
       const interval = setInterval(async () => {
-        try {
-          const sRes = await fetch(`${API_BASE_URL}/status/${task_id}`);
-          if (!sRes.ok) return;
+        const sRes = await fetch(`${API_BASE_URL}/status/${task_id}`);
+        const data = await sRes.json();
+        setProgress(data.progress);
+        setMsg(data.message);
 
-          const data = await sRes.json();
-          setProgress(data.progress);
-          setMsg(data.message);
-
-          if (data.status === 'completed') {
-            clearInterval(interval);
-            setDlUrl(`${API_BASE_URL}${data.download_url}`);
-            setStatus("success");
-          } else if (data.status === 'failed') {
-            clearInterval(interval);
-            setStatus("error");
-            setMsg(data.message || "Conversion failed");
-          }
-        } catch (err) {
-          console.error("Polling error:", err);
+        if (data.status === 'completed') {
+          clearInterval(interval);
+          setDlUrl(`${API_BASE_URL}${data.download_url}`);
+          setStatus("success");
+        } else if (data.status === 'failed') {
+          clearInterval(interval);
+          setStatus("error");
         }
-      }, 3000); 
-
-    } catch (e) {
-      console.error(e);
-      setStatus("error");
-      setMsg("Connection error. Please try again.");
-    }
+      }, 3000);
+    } catch (e) { setStatus("error"); }
   };
 
   return (
     <div className="container">
       <div className="card">
         <h1>📚 Scan2eBook Pro</h1>
-        <p className="subtitle">High-Accuracy AI Conversion</p>
-
-        <div className="input-group">
-          <label>Book Title</label>
-          <input 
-            type="text" 
-            placeholder="e.g., Personal Journal" 
-            value={title} 
-            onChange={e => setTitle(e.target.value)} 
-            className="text-input" 
-          />
-        </div>
+        <input type="text" placeholder="Book Title" value={title} onChange={e => setTitle(e.target.value)} className="text-input" />
         
         <div className="upload-section">
-          <label>Step 1: Book Cover (Optional)</label>
-          <div className="upload-zone">
-            <input type="file" onChange={handleCover} accept="image/*" />
-            {coverPreview ? (
-              <img src={coverPreview} className="cover-preview" alt="cover" />
-            ) : (
-              <p>Tap to select cover</p>
-            )}
-          </div>
+          <label>Book Cover:</label>
+          <input type="file" onChange={handleCover} accept="image/*" />
+          {coverPreview && <img src={coverPreview} className="cover-preview" alt="cover" />}
         </div>
 
         <div className="upload-section">
-          <label>Step 2: Book Pages</label>
-          <div className="upload-zone">
-            <input type="file" multiple onChange={handleFiles} accept="image/*" />
-            {files.length > 0 ? (
-              <p>✅ {files.length} pages selected</p>
-            ) : (
-              <p>Tap to select pages</p>
-            )}
-          </div>
+          <label>Select Pages:</label>
+          <input type="file" multiple onChange={e => setFiles(Array.from(e.target.files))} accept="image/*" />
+          {files.length > 0 && <p className="page-count">✅ {files.length} pages ready</p>}
         </div>
 
-        {status === "idle" && (
-          <button 
-            onClick={handleUpload} 
-            className="primary-btn" 
-            disabled={!files.length}
-          >
-            🚀 Start Conversion
-          </button>
+        {isPreviewing && (
+          <div className="preview-container">
+            <h3>📝 Quick Preview (Page 1)</h3>
+            <textarea 
+              className="urdu-editor" 
+              dir="rtl" 
+              value={editableContent} 
+              onChange={(e) => setEditableContent(e.target.value)}
+            />
+          </div>
         )}
-        
+
+        <div className="action-buttons">
+          {status === "idle" && files.length > 0 && !isPreviewing && (
+            <button onClick={handleGetPreview} className="secondary-btn">🔍 Preview Text</button>
+          )}
+          {status === "idle" && files.length > 0 && (
+            <button onClick={handleUpload} className="primary-btn">🚀 Create Full eBook</button>
+          )}
+        </div>
+
         {status === "processing" && (
           <div className="prog-container">
             <div className="spinner"></div>
-            <p className="status-msg">🤖 {msg}</p>
-            <div className="bar">
-              <div className="fill" style={{width: `${progress}%`}}></div>
-            </div>
-            <p className="percent">{progress}%</p>
+            <p>{msg}</p>
+            <div className="bar"><div className="fill" style={{width: `${progress}%`}}></div></div>
           </div>
         )}
 
         {status === "success" && (
-          <div className="success-area">
-            <h2>🎉 Ready!</h2>
-            <a href={dlUrl} className="download-btn">Download .EPUB</a>
-            <button onClick={() => window.location.reload()} className="reset-btn">New Project</button>
-          </div>
-        )}
-
-        {status === "error" && (
-          <div className="error-area">
-            <p>⚠️ {msg}</p>
-            <button onClick={() => setStatus("idle")} className="primary-btn">Try Again</button>
+          <div className="success-box">
+            <a href={dlUrl} className="download-btn">Download .EPUB ⬇️</a>
+            <button onClick={() => window.location.reload()} className="reset-btn">Start New</button>
           </div>
         )}
       </div>
     </div>
   );
 }
-
 export default App;
