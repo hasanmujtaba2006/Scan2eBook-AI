@@ -37,54 +37,38 @@ OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
 for d in [UPLOAD_DIR, OUTPUT_DIR]:
     if not os.path.exists(d): os.makedirs(d)
 
-# --- NEW: IMAGE ENHANCEMENT FUNCTION ---
 def enhance_image_for_ocr(img_path):
-    """
-    Uses Computer Vision to remove shadows and make text pop.
-    """
     # Read image
     image = cv2.imread(img_path)
-    if image is None:
-        return Image.open(img_path) # Fallback to PIL if OpenCV fails
+    if image is None: return Image.open(img_path)
 
-    # 1. Convert to Grayscale
+    # 1. Grayscale (Low Memory)
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     
-    # 2. Rescale (Zoom in 2x) for better character recognition
-    gray = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+    # 2. Skip Resize or use a smaller factor (1.2x instead of 2x)
+    # This prevents the 8-minute memory hang
+    gray = cv2.resize(gray, None, fx=1.2, fy=1.2, interpolation=cv2.INTER_LINEAR)
     
-    # 3. Adaptive Thresholding (Removes shadows and page curves)
-    processed_img = cv2.adaptiveThreshold(
-        gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
-    )
+    # 3. Fast Thresholding
+    _, processed_img = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     
-    # Convert back to PIL format for Tesseract
     return Image.fromarray(processed_img)
 
-# --- UPDATED: HIGH-ACCURACY AI PROOFREADER ---
 def clean_text_with_ai(raw_text):
     if not raw_text.strip(): return ""
     
-    # We use a more direct prompt to reduce AI "thinking" time
-    prompt = f"""
-    Act as a strict OCR cleaner. Fix typos and format as HTML.
-    Do not change the wording. Only fix errors.
-    Return ONLY <body> content.
-    
-    TEXT: {raw_text}
-    """
+    # Llama 3.1 8B is the best balance of speed and logic
+    prompt = f"Fix OCR typos in this book text. Return ONLY HTML <p> tags. No intro: {raw_text}"
     
     try:
         completion = client.chat.completions.create(
-            model="llama3-70b-8192", 
+            model="llama3-8b-8192", 
             messages=[{"role": "user", "content": prompt}],
-            temperature=0,
-            max_tokens=2000 # Limit the response length to save time
+            temperature=0
         )
         return completion.choices[0].message.content
-    except Exception as e:
+    except:
         return f"<p>{raw_text}</p>"
-
 # --- THE BACKGROUND ENGINE ---
 def process_epub_conversion(task_id: str, file_paths: list, book_title: str, cover_path: str = None):
     try:
