@@ -19,11 +19,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- GLOBAL INITIALIZATION (SPEED BOOST) ---
-# Load model once at startup, not every request
+# --- GLOBAL INITIALIZATION ---
 print("Loading PaddleOCR Model... (This takes 10s on first run)")
-# use_gpu=False for Hugging Face Free Tier (CPU only)
-ocr_engine = PaddleOCR(use_angle_cls=True, lang='ur', use_gpu=False, show_log=False)
+# FIX: Removed 'show_log=False' because it is not supported in new version
+ocr_engine = PaddleOCR(use_angle_cls=True, lang='ur', use_gpu=False)
 print("PaddleOCR Model Ready!")
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
@@ -39,25 +38,21 @@ async def process_page(file: UploadFile = File(...)):
         contents = await file.read()
         image = Image.open(io.BytesIO(contents)).convert("RGB")
         
-        # 2. Convert to format Paddle understands (Numpy Array)
+        # 2. Convert to Numpy Array
         img_array = np.array(image)
 
-        # 3. Perform OCR (The Heavy Lifting)
-        # cls=True fixes upside-down images automatically
+        # 3. Perform OCR
         result = ocr_engine.ocr(img_array, cls=True)
 
         # 4. Extract Text
-        # Paddle returns a complex list of boxes/text/confidence. We just want text.
         extracted_text = ""
         if result and result[0]:
-            # Join all detected lines with a newline
             extracted_text = "\n".join([line[1][0] for line in result[0]])
 
         if not extracted_text.strip():
             return {"clean": "No text detected. Try a clearer photo."}
 
-        # 5. AI Cleaning (Llama 3.1)
-        # Now the AI gets much better input, so it works faster and better.
+        # 5. AI Cleaning
         completion = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
