@@ -3,13 +3,13 @@ import io
 import numpy as np
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from PIL import Image, ImageOps
+# Added ImageEnhance for Contrast/Sharpness
+from PIL import Image, ImageOps, ImageEnhance 
 from groq import Groq
 from paddleocr import PaddleOCR
 
 app = FastAPI()
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,43 +18,51 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- GLOBAL INITIALIZATION ---
-print("🚀 Loading AI Models... (Please wait)")
-
-# FIX: Removed 'show_log' and 'use_angle_cls' completely.
-# This prevents the "ValueError: Unknown argument" crash.
+print("🚀 Loading HD AI Models...")
+# Initialize standard models
 ocr_ur = PaddleOCR(lang='ur')
 ocr_en = PaddleOCR(lang='en')
-
 print("✅ Models Ready!")
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 def optimize_image(image: Image.Image) -> Image.Image:
     """
-    1. Fix Rotation (EXIF): Solves 'upside down' text.
-    2. Convert to Grayscale: Solves color noise.
-    3. Resize: Solves speed issues (limit to 1280px).
+    HD Pre-processing Pipeline:
+    1. Fix Rotation
+    2. Resize (Keep High Quality 2000px)
+    3. Boost Contrast & Sharpness (Crucial for Urdu)
     """
+    # 1. Fix Orientation
     try:
-        # 1. Fix Orientation (Phone cameras often save rotated)
         image = ImageOps.exif_transpose(image)
     except Exception:
-        pass # If no EXIF data, skip
+        pass
 
-    # 2. Resize if too big (Speed Boost)
-    max_dimension = 1280
+    # 2. Resize (Increased to 2000px for better detail)
+    max_dimension = 2000 
     if max(image.size) > max_dimension:
         ratio = max_dimension / max(image.size)
         new_size = (int(image.width * ratio), int(image.height * ratio))
         image = image.resize(new_size, Image.Resampling.LANCZOS)
 
-    # 3. Convert to RGB (Paddle expects 3 channels)
-    return image.convert("RGB")
+    # 3. Convert to RGB
+    image = image.convert("RGB")
+
+    # 4. Apply Filters (Magic Step)
+    # Increase Contrast by 50%
+    enhancer = ImageEnhance.Contrast(image)
+    image = enhancer.enhance(1.5)
+    
+    # Increase Sharpness by 2x (Makes text edges crisp)
+    enhancer = ImageEnhance.Sharpness(image)
+    image = enhancer.enhance(2.0)
+
+    return image
 
 @app.get("/")
 async def root():
-    return {"message": "High-Performance OCR Server Running ⚡"}
+    return {"message": "HD OCR Server Running ⚡"}
 
 @app.post("/process-page")
 async def process_page(
@@ -62,36 +70,39 @@ async def process_page(
     language: str = Form("ur")
 ):
     try:
-        # 1. Read & Optimize Image
         contents = await file.read()
         raw_image = Image.open(io.BytesIO(contents))
         
-        # SPEED & ACCURACY BOOST HERE
+        # Apply HD Optimization
         processed_image = optimize_image(raw_image)
         img_array = np.array(processed_image)
 
-        # 2. Select Engine
         engine = ocr_en if language == 'en' else ocr_ur
         print(f"Processing {language} page...")
 
-        # 3. Run OCR
+        # Run OCR
         result = engine.ocr(img_array)
 
         extracted_text = ""
         if result and result[0]:
-            # Join text blocks
             extracted_text = "\n".join([line[1][0] for line in result[0]])
 
-        if not extracted_text.strip():
-            return {"clean": "No text detected. Try a clearer photo."}
+        # DEBUG LOG: See how much text was actually found
+        print(f"🔍 Raw OCR Found: {len(extracted_text)} characters")
 
-        # 4. AI Correction (Llama 3.1)
+        if len(extracted_text) < 10:
+            return {"clean": "Text too blurry. Please take a clearer photo."}
+
+        # AI Correction
         prompt_lang = "English" if language == "en" else "Urdu"
+        
+        # Updated Prompt to be less aggressive (Don't delete text)
         system_prompt = (
             f"You are an expert {prompt_lang} editor. "
             "The user will provide text scanned from a book. "
-            "Fix OCR errors, broken words, and spelling. "
-            "Output ONLY the corrected text. Do not add any introduction or notes."
+            "The OCR might have some errors, but DO NOT summarize. "
+            "Keep ALL the original sentences. Just fix spelling and grammar. "
+            "Output ONLY the full corrected text."
         )
 
         completion = client.chat.completions.create(
