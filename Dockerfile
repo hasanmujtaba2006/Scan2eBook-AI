@@ -2,14 +2,15 @@
 FROM python:3.10-slim
 
 # 2. Install system-level packages first (as root)
+# Updated line with modern graphics libraries
 RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-urd \
     tesseract-ocr-ara \
-    libgl1-mesa-glx \
+    libgl1 \
+    libglx-mesa0 \
     libglib2.0-0 \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
-
 # 3. Create the user Hugging Face expects
 RUN useradd -m -u 1000 user
 USER user
