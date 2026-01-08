@@ -18,7 +18,7 @@ tasks = {}
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
-for d in [UPLOAD_DIR, OUTPUT_DIR]: 
+for d in [UPLOAD_DIR, OUTPUT_DIR, os.path.join(BASE_DIR, "temp")]: 
     if not os.path.exists(d): os.makedirs(d)
 
 def enhance_image(img_path):
@@ -30,12 +30,12 @@ def enhance_image(img_path):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     _, thr = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     del img
-    gc.collect() # Force memory cleanup
+    gc.collect() 
     return Image.fromarray(thr)
 
 def clean_text_with_ai(raw_text):
     if not raw_text.strip(): return ""
-    prompt = f"Professional Urdu/Arabic editor: Fix OCR errors. Wrap in <p dir='rtl' style='text-align:right;'>. Return HTML. TEXT: {raw_text}"
+    prompt = f"Act as a professional Urdu/Arabic book editor. Fix OCR errors. Wrap Urdu/Arabic in <p dir='rtl' style='text-align:right;'>. Return ONLY HTML. TEXT: {raw_text}"
     try:
         res = client.chat.completions.create(model="llama3-8b-8192", messages=[{"role": "user", "content": prompt}], temperature=0)
         return res.choices[0].message.content
@@ -43,7 +43,7 @@ def clean_text_with_ai(raw_text):
 
 def generate_ai_summary(combined_text):
     if not combined_text.strip(): return "No summary available."
-    prompt = f"Write a one-paragraph Urdu summary for this religious/book text: {combined_text[:3000]}"
+    prompt = f"Write a professional one-paragraph summary of this book text in Urdu: {combined_text[:3000]}"
     try:
         res = client.chat.completions.create(model="llama3-8b-8192", messages=[{"role": "user", "content": prompt}], temperature=0.5)
         return res.choices[0].message.content
@@ -68,8 +68,10 @@ def process_task(task_id, paths, title, cover_p, skip_summary):
     try:
         tasks[task_id]['status'] = 'processing'
         work = os.path.join(BASE_DIR, "temp", task_id)
-        oebps = os.path.join(work, "OEBPS"); meta = os.path.join(work, "META-INF")
-        os.makedirs(oebps); os.makedirs(meta)
+        oebps = os.path.join(work, "OEBPS")
+        meta = os.path.join(work, "META-INF")
+        os.makedirs(oebps, exist_ok=True)
+        os.makedirs(meta, exist_ok=True)
         
         with open(os.path.join(work, "mimetype"), "w") as f: f.write("application/epub+zip")
         
@@ -84,7 +86,7 @@ def process_task(task_id, paths, title, cover_p, skip_summary):
 
         for i, p in enumerate(paths):
             tasks[task_id]['progress'] = int(10 + (i/len(paths)*70))
-            tasks[task_id]['message'] = f"Processing Page {i+1}..."
+            tasks[task_id]['message'] = f"Reading Page {i+1}..."
             enhanced = enhance_image(p)
             raw = pytesseract.image_to_string(enhanced, lang='urd+ara', config='--oem 3 --psm 3')
             if not skip_summary and i < 3: all_text_for_summary += raw + " "
@@ -107,22 +109,28 @@ def process_task(task_id, paths, title, cover_p, skip_summary):
 
         out_fn = f"{task_id}.epub"
         with zipfile.ZipFile(os.path.join(OUTPUT_DIR, out_fn), 'w') as z:
-            z.write(os.path.join(work, "mimetype"), "mimetype", compress_type=zipfile.ZIP_STORED) # EPUB Compliance
+            z.write(os.path.join(work, "mimetype"), "mimetype", compress_type=zipfile.ZIP_STORED)
             for r, _, fls in os.walk(work):
                 for fl in fls:
                     if fl == "mimetype": continue
-                    z.write(os.path.join(r, fl), os.path.relpath(os.path.join(r, fl), work))
+                    abs_p = os.path.join(r, fl)
+                    z.write(abs_p, os.path.relpath(abs_p, work))
         
         shutil.rmtree(work)
         tasks[task_id].update({'status': 'completed', 'progress': 100, 'download_url': f"/download/{out_fn}", 'summary': summary})
-    except Exception as e: tasks[task_id].update({'status': 'failed', 'message': str(e)})
+    except Exception as e: 
+        tasks[task_id].update({'status': 'failed', 'message': str(e)})
 
 @app.post("/upload")
 async def upload(bg: BackgroundTasks, files: list[UploadFile] = File(...), cover: UploadFile = File(None), title: str = Form("Book"), skip_summary: bool = Form(False)):
-    tid = str(uuid.uuid4()); tdir = os.path.join(UPLOAD_DIR, tid); os.makedirs(tdir)
+    tid = str(uuid.uuid4())
+    tdir = os.path.join(UPLOAD_DIR, tid)
+    os.makedirs(tdir, exist_ok=True)
     paths = []
     for f in files:
-        p = os.path.join(tdir, f.filename); with open(p, "wb") as b: b.write(f.file.read()); paths.append(p)
+        p = os.path.join(tdir, f.filename)
+        with open(p, "wb") as b: b.write(f.file.read())
+        paths.append(p)
     cp = os.path.join(tdir, "c.jpg") if cover else None
     if cover:
         with open(cp, "wb") as b: b.write(cover.file.read())
@@ -135,3 +143,6 @@ async def status(tid: str): return tasks.get(tid)
 
 @app.get("/download/{fn}")
 async def dl(fn: str): return FileResponse(os.path.join(OUTPUT_DIR, fn), filename=fn, media_type='application/epub+zip')
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
