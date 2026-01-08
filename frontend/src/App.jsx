@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import './App.css';
 
-// आपका सही Backend URL
 const API_BASE_URL = "https://hasanmujtaba-scan2ebook-ai.hf.space";
 
 function App() {
@@ -13,7 +12,7 @@ function App() {
     if (!file) return alert("Please select or take a photo first!");
     
     setLoading(true);
-    setContent(""); // पुराने टेक्स्ट को साफ़ करें
+    setContent("");
     const formData = new FormData();
     formData.append("file", file);
 
@@ -43,11 +42,10 @@ function App() {
       <h1>📱 Scan2Ebook AI</h1>
       
       <div className="upload-container">
-        {/* 'capture="environment"' मोबाइल पर सीधे पीछे वाला कैमरा खोलता है */}
+        {/* capture हटा दिया गया है ताकि गैलरी का ऑप्शन भी आए */}
         <input 
           type="file" 
           accept="image/*" 
-          capture="environment"
           onChange={(e) => setFile(e.target.files[0])} 
         />
         <p style={{marginTop: '10px', color: '#666'}}>
@@ -66,7 +64,6 @@ function App() {
       {content && (
         <div className="output-box">
           <h3>Corrected Urdu Text:</h3>
-          {/* उर्दू के लिए dir="rtl" (Right-to-Left) ज़रूरी है */}
           <textarea value={content} readOnly rows={15} dir="rtl" />
         </div>
       )}
