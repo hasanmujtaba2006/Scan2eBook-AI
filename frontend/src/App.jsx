@@ -7,6 +7,7 @@ function App() {
   const [files, setFiles] = useState([]);
   const [cover, setCover] = useState(null);
   const [title, setTitle] = useState("");
+  const [isBatchMode, setIsBatchMode] = useState(false);
   const [status, setStatus] = useState("idle");
   const [progress, setProgress] = useState(0);
   const [msg, setMsg] = useState("");
@@ -15,7 +16,6 @@ function App() {
   const [editableContent, setEditableContent] = useState("");
   const [isPreviewing, setIsPreviewing] = useState(false);
 
-  // Re-order logic: Swap array elements based on direction
   const moveFile = (index, direction) => {
     const updatedFiles = [...files];
     const newIndex = direction === 'up' ? index - 1 : index + 1;
@@ -24,15 +24,12 @@ function App() {
     setFiles(updatedFiles);
   };
 
-  // Remove logic: Filter out the selected index
-  const removeFile = (index) => {
-    setFiles(files.filter((_, i) => i !== index));
-  };
+  const removeFile = (index) => setFiles(files.filter((_, i) => i !== index));
 
   const handleGetPreview = async () => {
     if (!files.length) return;
     setStatus("processing");
-    setMsg("Analyzing script for preview...");
+    setMsg("Reading Page 1 script...");
     const formData = new FormData();
     formData.append("file", files[0]);
     try {
@@ -41,10 +38,7 @@ function App() {
       setEditableContent(data.html);
       setIsPreviewing(true);
       setStatus("idle");
-    } catch (e) {
-      setStatus("error");
-      setMsg("Preview failed.");
-    }
+    } catch (e) { setStatus("error"); setMsg("Preview failed."); }
   };
 
   const handleUpload = async () => {
@@ -53,6 +47,7 @@ function App() {
     files.forEach(f => formData.append("files", f));
     if (cover) formData.append("cover", cover);
     formData.append("title", title || "My Urdu eBook");
+    formData.append("skip_summary", isBatchMode);
 
     try {
       const res = await fetch(`${API_BASE_URL}/upload`, { method: 'POST', body: formData });
@@ -78,9 +73,8 @@ function App() {
         <h1>📚 Scan2eBook AI</h1>
         <input type="text" placeholder="Book Title" value={title} onChange={e => setTitle(e.target.value)} className="text-input" />
         <div className="upload-section">
-          <label>Select Pages:</label>
+          <label>Add Pages:</label>
           <input type="file" multiple onChange={e => setFiles([...files, ...Array.from(e.target.files)])} accept="image/*" className="file-input" />
-          
           <div className="file-preview-grid">
             {files.map((file, index) => (
               <div key={index} className="file-chip">
@@ -95,9 +89,16 @@ function App() {
           </div>
         </div>
 
+        <div className="toggle-container">
+          <label className="switch">
+            <input type="checkbox" checked={isBatchMode} onChange={(e) => setIsBatchMode(e.target.checked)} />
+            <span className="slider round"></span>
+          </label>
+          <span className="toggle-label">⚡ Batch Mode (Faster)</span>
+        </div>
+
         {isPreviewing && (
           <div className="preview-mode">
-            <h3>📝 Quick Editor</h3>
             <textarea dir="rtl" className="urdu-editor" value={editableContent} onChange={e => setEditableContent(e.target.value)} />
           </div>
         )}
@@ -105,7 +106,7 @@ function App() {
         {status === "idle" && files.length > 0 && (
           <div className="btn-group">
             <button onClick={handleGetPreview} className="sec-btn">🔍 Preview Text</button>
-            <button onClick={handleUpload} className="pri-btn">🚀 Generate eBook</button>
+            <button onClick={handleUpload} className="pri-btn">🚀 Start Conversion</button>
           </div>
         )}
 
@@ -119,12 +120,9 @@ function App() {
 
         {status === "success" && (
           <div className="success">
-            <div className="summary-box" dir="rtl">
-              <strong>✨ AI Summary:</strong>
-              <p>{summary}</p>
-            </div>
-            <a href={dlUrl} className="dl-btn">Download .EPUB ⬇️</a>
-            <button onClick={() => window.location.reload()} className="reset-btn">New Project</button>
+            <div className="summary-box" dir="rtl"><strong>Summary:</strong><p>{summary}</p></div>
+            <a href={dlUrl} className="dl-btn">Download .EPUB</a>
+            <button onClick={() => window.location.reload()} className="reset-btn">New Book</button>
           </div>
         )}
       </div>
