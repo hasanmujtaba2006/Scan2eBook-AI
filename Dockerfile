@@ -1,35 +1,29 @@
-# 1. Start with the base image
-FROM python:3.10-slim
+FROM python:3.9-slim
 
-# 2. Install system-level packages first (as root)
-# Updated line with modern graphics libraries
+# 1. Install System Dependencies (Required for PaddleOCR & OpenCV)
 RUN apt-get update && apt-get install -y \
-    tesseract-ocr \
-    tesseract-ocr-urd \
-    tesseract-ocr-ara \
-    libgl1 \
-    libglx-mesa0 \
+    libgl1-mesa-glx \
     libglib2.0-0 \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
-# 3. Create the user Hugging Face expects
-RUN useradd -m -u 1000 user
-USER user
-ENV HOME=/home/user \
-    PATH=/home/user/.local/bin:$PATH
+    libgomp1 \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
-# 4. Set the working directory INSIDE the user's home
-WORKDIR $HOME/app
+# 2. Set working directory
+WORKDIR /app
 
-# 5. Create writable folders BEFORE copying code to avoid permission errors
-RUN mkdir -p uploads outputs temp && chmod -R 777 uploads outputs temp
+# 3. Create a writable cache directory for PaddleOCR (Fixes permission errors)
+RUN mkdir -p /app/.paddleocr && chmod -R 777 /app/.paddleocr
+ENV HOME=/app
 
-# 6. Copy requirements and install
-COPY --chown=user:user requirements.txt .
+# 4. Copy requirements and install
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 7. Copy the rest of your app
-COPY --chown=user:user . .
+# 5. Copy app code
+COPY . .
 
-# 8. Expose port and start
+# 6. Expose the port
 EXPOSE 7860
+
+# 7. Start the application
 CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "7860"]
