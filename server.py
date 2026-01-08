@@ -1,8 +1,7 @@
 import os
 import io
-import uuid
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
@@ -51,22 +50,32 @@ async def process_page(file: UploadFile = File(...)):
         )
         return {"clean": completion.choices[0].message.content}
     except Exception as e:
+        print(f"OCR Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/generate-epub")
 async def generate_epub(book: BookData):
-    file_path = f"/tmp/{uuid.uuid4()}.epub"  # Save to /tmp with unique name
-    
     try:
+        # 1. Create Book
         eb = epub.EpubBook()
         eb.set_identifier(f'id_{book.title}')
         eb.set_title(book.title)
         eb.set_language('ur')
+        
+        if not book.pages:
+            raise HTTPException(status_code=400, detail="Book has no pages")
 
+        # 2. Add Chapters
         chapters = []
         for i, page_text in enumerate(book.pages):
             c = epub.EpubHtml(title=f'Page {i+1}', file_name=f'page_{i+1}.xhtml', lang='ur')
-            c.content = f'<div dir="rtl" style="text-align: right;"><h1>Page {i+1}</h1><p>{page_text}</p></div>'
+            # Add simple CSS for clean text
+            c.content = f"""
+                <div dir="rtl" style="text-align: right; font-family: sans-serif; padding: 20px;">
+                    <h1>Page {i+1}</h1>
+                    <p style="white-space: pre-wrap;">{page_text}</p>
+                </div>
+            """
             eb.add_item(c)
             chapters.append(c)
 
@@ -75,16 +84,22 @@ async def generate_epub(book: BookData):
         eb.add_item(epub.EpubNav())
         eb.spine = ['nav'] + chapters
 
-        # Write to the specific /tmp path
-        epub.write_epub(file_path, eb)
+        # 3. FIX: Write to RAM Buffer instead of Disk
+        buffer = io.BytesIO()
+        epub.write_epub(buffer, eb, {})
+        buffer.seek(0)
 
-        # Return the file directly
-        return FileResponse(
-            path=file_path, 
-            filename=f"{book.title}.epub",
+        # 4. Return Stream
+        return StreamingResponse(
+            buffer, 
+            headers={'Content-Disposition': f'attachment; filename="{book.title}.epub"'},
             media_type='application/epub+zip'
         )
 
     except Exception as e:
         print(f"EPUB Error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Server Error: {str(e)}")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=7860)
