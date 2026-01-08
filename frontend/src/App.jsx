@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import './App.css'
 
-const API_BASE_URL = "https://scan2ebook-ai.onrender.com"; 
+const API_BASE_URL = "https://hasanmujtaba-scan2ebook-ai.hf.space";
 
 function App() {
   const [files, setFiles] = useState([]);
