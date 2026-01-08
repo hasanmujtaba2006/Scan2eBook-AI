@@ -21,10 +21,10 @@ app.add_middleware(
 # --- GLOBAL INITIALIZATION ---
 print("🚀 Loading AI Models... (Please wait)")
 
-# Load Models (CPU Optimized)
-# We disable 'use_angle_cls' here to save RAM, as we fix rotation via EXIF now.
-ocr_ur = PaddleOCR(lang='ur', use_angle_cls=False, show_log=False)
-ocr_en = PaddleOCR(lang='en', use_angle_cls=False, show_log=False)
+# FIX: Removed 'show_log' and 'use_angle_cls' completely.
+# This prevents the "ValueError: Unknown argument" crash.
+ocr_ur = PaddleOCR(lang='ur')
+ocr_en = PaddleOCR(lang='en')
 
 print("✅ Models Ready!")
 
@@ -36,8 +36,11 @@ def optimize_image(image: Image.Image) -> Image.Image:
     2. Convert to Grayscale: Solves color noise.
     3. Resize: Solves speed issues (limit to 1280px).
     """
-    # 1. Fix Orientation (Phone cameras often save rotated)
-    image = ImageOps.exif_transpose(image)
+    try:
+        # 1. Fix Orientation (Phone cameras often save rotated)
+        image = ImageOps.exif_transpose(image)
+    except Exception:
+        pass # If no EXIF data, skip
 
     # 2. Resize if too big (Speed Boost)
     max_dimension = 1280
@@ -71,8 +74,8 @@ async def process_page(
         engine = ocr_en if language == 'en' else ocr_ur
         print(f"Processing {language} page...")
 
-        # 3. Run OCR (Fast Mode)
-        result = engine.ocr(img_array, cls=False)
+        # 3. Run OCR
+        result = engine.ocr(img_array)
 
         extracted_text = ""
         if result and result[0]:
