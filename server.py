@@ -19,11 +19,11 @@ app.add_middleware(
 )
 
 # --- GLOBAL INITIALIZATION ---
-print("Loading PaddleOCR Model... (This takes 10s on first run)")
+print("Loading PaddleOCR Model...")
 
-# FIX: Removed 'use_gpu' and 'show_log'. Only keeping essential params.
-# Paddle will automatically use CPU since GPU is not available.
-ocr_engine = PaddleOCR(use_angle_cls=True, lang='ur') 
+# FIX: Removed 'use_angle_cls' to prevent conflict.
+# We are going for "Basic Mode" which is 100% stable.
+ocr_engine = PaddleOCR(lang='ur') 
 
 print("PaddleOCR Model Ready!")
 
@@ -43,13 +43,13 @@ async def process_page(file: UploadFile = File(...)):
         # 2. Convert to Numpy Array
         img_array = np.array(image)
 
-        # 3. Perform OCR
-        result = ocr_engine.ocr(img_array, cls=True)
+        # 3. Perform OCR (FIX: Removed 'cls=True')
+        # This is the standard call that works on ALL versions.
+        result = ocr_engine.ocr(img_array)
 
         # 4. Extract Text
         extracted_text = ""
         if result and result[0]:
-            # Join text cleanly
             extracted_text = "\n".join([line[1][0] for line in result[0]])
 
         if not extracted_text.strip():
