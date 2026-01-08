@@ -21,12 +21,13 @@ app.add_middleware(
 # --- GLOBAL INITIALIZATION (Dual Engine) ---
 print("Loading OCR Models... (Please wait)")
 
+# FIX: Removed 'show_log' and 'use_angle_cls'. Using simplest initialization.
 # 1. Load Urdu Engine
-ocr_ur = PaddleOCR(lang='ur', use_angle_cls=False, show_log=False)
+ocr_ur = PaddleOCR(lang='ur')
 print("✅ Urdu Model Ready")
 
 # 2. Load English Engine
-ocr_en = PaddleOCR(lang='en', use_angle_cls=False, show_log=False)
+ocr_en = PaddleOCR(lang='en')
 print("✅ English Model Ready")
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
@@ -51,7 +52,8 @@ async def process_page(
         print(f"Processing with {language} engine...")
 
         # 3. Perform OCR
-        result = engine.ocr(img_array, cls=True)
+        # FIX: Removed 'cls=True' to prevent "unexpected keyword" error
+        result = engine.ocr(img_array)
 
         extracted_text = ""
         if result and result[0]:
