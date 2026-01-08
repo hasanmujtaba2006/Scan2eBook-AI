@@ -1,23 +1,35 @@
-FROM python:3.9-slim-bullseye
+# Use Python 3.10 slim for a smaller footprint
+FROM python:3.10-slim
 
-# Install only essential Tesseract and specific language data
+# Install Tesseract, Urdu/Arabic packs, and OpenCV dependencies
 RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-urd \
-    tesseract-ocr-hin \
     tesseract-ocr-ara \
+    libgl1-mesa-glx \
     libglib2.0-0 \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+# Create a non-root user (Hugging Face Requirement)
+RUN useradd -m -u 1000 user
+USER user
+ENV HOME=/home/user \
+    PATH=/home/user/.local/bin:$PATH
 
-# Install Python requirements
-COPY requirements.txt .
+WORKDIR $HOME/app
+
+# Copy and install requirements
+COPY --chown=user:user requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Create writable directories
+RUN mkdir -p uploads outputs temp && chmod -R 777 uploads outputs temp
 
-EXPOSE 8000
-# Change from 8000 to 7860
+# Copy the rest of the application
+COPY --chown=user:user . .
+
+# Expose the mandatory Hugging Face port
+EXPOSE 7860
+
+# Run with Uvicorn on port 7860
 CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "7860"]
