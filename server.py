@@ -8,16 +8,16 @@ from groq import Groq
 
 app = FastAPI()
 
-# 1. FIX: Comprehensive CORS Policy
+# 1. FIX: Comprehensive CORS Policy (Must be BEFORE routes)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For production, replace "*" with your Vercel URL
+    allow_origins=["*"],  # Use ["*"] to allow all, or list your Vercel URL specifically
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
-# Initialize Groq (Ensure GROQ_API_KEY is in your Space Secrets)
+# Initialize Groq (Secret must be set in HF Space Settings)
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 @app.get("/")
@@ -31,13 +31,13 @@ async def process_page(file: UploadFile = File(...)):
         contents = await file.read()
         image = Image.open(io.BytesIO(contents))
         
-        # Perform OCR for Urdu and Arabic
+        # OCR for Urdu and Arabic
         raw_text = pytesseract.image_to_string(image, lang='urd+ara')
         
         if not raw_text.strip():
             return {"raw": "", "clean": "No text detected in image."}
 
-        # AI Cleaning using the UPDATED model
+        # AI Cleaning using Llama 3.1 (Current supported model)
         completion = client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
@@ -55,5 +55,4 @@ async def process_page(file: UploadFile = File(...)):
 
 if __name__ == "__main__":
     import uvicorn
-    # Hugging Face requires port 7860
     uvicorn.run(app, host="0.0.0.0", port=7860)

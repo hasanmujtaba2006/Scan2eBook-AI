@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import './App.css';
 
-// 2. FIX: Use your direct Hugging Face Space URL
+// FIX: Use the DIRECT subdomain URL, not the HF Spaces Hub URL
 const API_BASE_URL = "https://hasanmujtaba-scan2ebook-ai.hf.space";
 
 function App() {
@@ -10,7 +9,7 @@ function App() {
   const [loading, setLoading] = useState(false);
 
   const handleProcess = async () => {
-    if (!file) return alert("Please select a file first!");
+    if (!file) return alert("Please select a file!");
     
     setLoading(true);
     const formData = new FormData();
@@ -20,7 +19,7 @@ function App() {
       const response = await fetch(`${API_BASE_URL}/process-page`, {
         method: 'POST',
         body: formData,
-        // NOTE: Do NOT set Content-Type header; browser handles it for FormData
+        // IMPORTANT: Do NOT set Headers manually for FormData
       });
 
       if (!response.ok) {
@@ -32,7 +31,7 @@ function App() {
       setContent(data.clean);
     } catch (error) {
       console.error("Connection Error:", error);
-      alert("Could not connect to backend. Ensure the Space is 'Running'.");
+      alert("Network Error: Check browser console (Inspect > Console) for CORS details.");
     } finally {
       setLoading(false);
     }
@@ -47,7 +46,7 @@ function App() {
       </button>
       <div className="output-box">
         <h3>Corrected Urdu Text:</h3>
-        <textarea value={content} readOnly rows={10} cols={50} />
+        <textarea value={content} readOnly rows={10} style={{width: '100%'}} />
       </div>
     </div>
   );
