@@ -46,3 +46,28 @@
   font-weight: bold;
   cursor: pointer;
 }
+
+/* Add/Update these styles */
+
+.meta-inputs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.text-input {
+  flex: 1;
+  padding: 12px;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.text-input:focus {
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+}
+
+/* बाकी CSS वही रहेगा जो मैंने पहले दिया था */
