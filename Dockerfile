@@ -1,8 +1,9 @@
 FROM python:3.9-slim
 
-# 1. Install System Dependencies (Required for PaddleOCR & OpenCV)
+# 1. Install System Dependencies
+# 'libgl1-mesa-glx' ko 'libgl1' se badal diya gaya hai
 RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
     libgomp1 \
     git \
@@ -11,7 +12,7 @@ RUN apt-get update && apt-get install -y \
 # 2. Set working directory
 WORKDIR /app
 
-# 3. Create a writable cache directory for PaddleOCR (Fixes permission errors)
+# 3. Create a writable cache directory for PaddleOCR
 RUN mkdir -p /app/.paddleocr && chmod -R 777 /app/.paddleocr
 ENV HOME=/app
 
