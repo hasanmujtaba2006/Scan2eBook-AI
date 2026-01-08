@@ -4,7 +4,7 @@ import './App.css';
 const API_BASE_URL = "https://hasanmujtaba-scan2ebook-ai.hf.space";
 
 function App() {
-  const [theme, setTheme] = useState('dark'); // Default to dark looks better
+  const [theme, setTheme] = useState('dark'); 
   const [language, setLanguage] = useState('ur'); // 'ur' or 'en'
   
   const [file, setFile] = useState(null);
@@ -113,7 +113,6 @@ function App() {
 
   return (
     <div className="App">
-      {/* 1. Header Area */}
       <header className="header">
         <h1>Scan2Ebook AI</h1>
         <button className="theme-toggle" onClick={toggleTheme} title="Switch Theme">
@@ -121,13 +120,13 @@ function App() {
         </button>
       </header>
 
-      {/* 2. Language Selector (Visible Buttons) */}
+      {/* Language Selector (Updated to India) */}
       <div className="language-selector">
         <button 
           className={`lang-btn ${language === 'ur' ? 'active' : ''}`} 
           onClick={() => setLanguage('ur')}
         >
-          🇵🇰 Urdu
+          🇮🇳 Urdu
         </button>
         <button 
           className={`lang-btn ${language === 'en' ? 'active' : ''}`} 
@@ -137,7 +136,6 @@ function App() {
         </button>
       </div>
       
-      {/* 3. Inputs (Centered) */}
       <div className="meta-inputs">
         <input className="text-input" type="text" value={bookTitle} onChange={(e) => setBookTitle(e.target.value)} placeholder={language === 'ur' ? "Kitab ka Naam" : "Book Title"} />
         <input className="text-input" type="text" value={authorName} onChange={(e) => setAuthorName(e.target.value)} placeholder={language === 'ur' ? "Musannif" : "Author Name"} />
