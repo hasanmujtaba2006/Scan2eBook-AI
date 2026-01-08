@@ -1,4 +1,4 @@
-import os, shutil, uuid, zipfile, uvicorn, cv2, gc
+import os, shutil, uuid, zipfile, uvicorn, cv2, gc, concurrent.futures
 import numpy as np
 from fastapi import FastAPI, File, UploadFile, BackgroundTasks, Form
 from fastapi.responses import FileResponse
@@ -19,13 +19,14 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
 for d in [UPLOAD_DIR, OUTPUT_DIR, os.path.join(BASE_DIR, "temp")]: 
-    if not os.path.exists(d): os.makedirs(d)
+    if not os.path.exists(d): os.makedirs(d, exist_ok=True)
 
 def enhance_image(img_path):
     img = cv2.imread(img_path)
     if img is None: return Image.open(img_path)
     h, w = img.shape[:2]
-    if w < 1200:
+    # Resize slightly for better OCR but stay under 512MB
+    if w < 1000:
         img = cv2.resize(img, None, fx=1.2, fy=1.2, interpolation=cv2.INTER_LINEAR)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     _, thr = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
@@ -35,6 +36,7 @@ def enhance_image(img_path):
 
 def clean_text_with_ai(raw_text):
     if not raw_text.strip(): return ""
+    # Strict prompt to eliminate hallucinations found in your previous scans
     prompt = f"Act as a professional Urdu/Arabic book editor. Fix OCR errors. Wrap Urdu/Arabic in <p dir='rtl' style='text-align:right;'>. Return ONLY HTML. TEXT: {raw_text}"
     try:
         res = client.chat.completions.create(model="llama3-8b-8192", messages=[{"role": "user", "content": prompt}], temperature=0)
@@ -42,8 +44,8 @@ def clean_text_with_ai(raw_text):
     except: return f"<p dir='rtl'>{raw_text}</p>"
 
 def generate_ai_summary(combined_text):
-    if not combined_text.strip(): return "No summary available."
-    prompt = f"Write a professional one-paragraph summary of this book text in Urdu: {combined_text[:3000]}"
+    if not combined_text.strip(): return "Summary skipped."
+    prompt = f"Summarize this book text in one professional Urdu paragraph: {combined_text[:3000]}"
     try:
         res = client.chat.completions.create(model="llama3-8b-8192", messages=[{"role": "user", "content": prompt}], temperature=0.5)
         return res.choices[0].message.content
@@ -56,7 +58,7 @@ async def preview_page(file: UploadFile = File(...)):
     with open(t_path, "wb") as buffer: buffer.write(await file.read())
     try:
         enhanced = enhance_image(t_path)
-        raw = pytesseract.image_to_string(enhanced, lang='urd+ara', config='--oem 3 --psm 3')
+        raw = pytesseract.image_to_string(enhanced, lang='urd+ara', config='--oem 1 --psm 3')
         clean_html = clean_text_with_ai(raw)
         os.remove(t_path)
         return {"html": clean_html}
@@ -69,37 +71,44 @@ def process_task(task_id, paths, title, cover_p, skip_summary):
         tasks[task_id]['status'] = 'processing'
         work = os.path.join(BASE_DIR, "temp", task_id)
         oebps = os.path.join(work, "OEBPS")
-        meta = os.path.join(work, "META-INF")
         os.makedirs(oebps, exist_ok=True)
-        os.makedirs(meta, exist_ok=True)
+        os.makedirs(os.path.join(work, "META-INF"), exist_ok=True)
         
         with open(os.path.join(work, "mimetype"), "w") as f: f.write("application/epub+zip")
         
-        all_text_for_summary = ""
+        # PHASE 1: Fast OCR
+        raw_texts = []
+        for i, p in enumerate(paths):
+            tasks[task_id]['progress'] = int(10 + (i/len(paths)*40))
+            tasks[task_id]['message'] = f"OCR Reading: Page {i+1}..."
+            enhanced = enhance_image(p)
+            # OEM 1 is generally faster for these scripts on low CPU
+            raw = pytesseract.image_to_string(enhanced, lang='urd+ara', config='--oem 1 --psm 3')
+            raw_texts.append(raw)
+            enhanced.close()
+            gc.collect()
+
+        # PHASE 2: Parallel AI Cleaning (SPEED UP)
+        tasks[task_id]['message'] = "AI Cleaning all pages simultaneously..."
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            clean_pages = list(executor.map(clean_text_with_ai, raw_texts))
+
+        # PHASE 3: Packaging
         manifest, spine = '<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>', ""
-        
         if cover_p:
             shutil.copy(cover_p, os.path.join(oebps, "cover.jpg"))
             manifest += '<item id="c-i" href="cover.jpg" media-type="image/jpeg"/><item id="c-p" href="cover.html" media-type="application/xhtml+xml"/>'
             spine = '<itemref idref="c-p"/>'
             with open(os.path.join(oebps, "cover.html"), "w") as f: f.write('<html><body><img src="cover.jpg" style="width:100%"/></body></html>')
 
-        for i, p in enumerate(paths):
-            tasks[task_id]['progress'] = int(10 + (i/len(paths)*70))
-            tasks[task_id]['message'] = f"Reading Page {i+1}..."
-            enhanced = enhance_image(p)
-            raw = pytesseract.image_to_string(enhanced, lang='urd+ara', config='--oem 3 --psm 3')
-            if not skip_summary and i < 3: all_text_for_summary += raw + " "
-            
-            clean = clean_text_with_ai(raw)
-            with open(os.path.join(oebps, f"p{i}.html"), "w", encoding="utf-8") as f:
-                f.write(f"<html><body style='direction:rtl;'>{clean}</body></html>")
-            
-            manifest += f'<item id="p{i}" href="p{i}.html" media-type="application/xhtml+xml"/>'
+        for i, clean_content in enumerate(clean_pages):
+            p_name = f"p{i}.html"
+            with open(os.path.join(oebps, p_name), "w", encoding="utf-8") as f:
+                f.write(f"<html><body style='direction:rtl;'>{clean_content}</body></html>")
+            manifest += f'<item id="p{i}" href="{p_name}" media-type="application/xhtml+xml"/>'
             spine += f'<itemref idref="p{i}"/>'
-            gc.collect()
 
-        summary = "Batch Mode: Summary Skipped." if skip_summary else generate_ai_summary(all_text_for_summary)
+        summary = "Batch Mode: Summary Skipped." if skip_summary else generate_ai_summary(" ".join(raw_texts[:3]))
         
         with open(os.path.join(oebps, "content.opf"), "w") as f:
             f.write(f'<package version="2.0" xmlns="http://www.idpf.org/2007/opf"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>{title}</dc:title><dc:description>{summary}</dc:description><dc:language>ur</dc:language></metadata><manifest>{manifest}</manifest><spine toc="ncx">{spine}</spine></package>')
@@ -109,7 +118,7 @@ def process_task(task_id, paths, title, cover_p, skip_summary):
 
         out_fn = f"{task_id}.epub"
         with zipfile.ZipFile(os.path.join(OUTPUT_DIR, out_fn), 'w') as z:
-            z.write(os.path.join(work, "mimetype"), "mimetype", compress_type=zipfile.ZIP_STORED)
+            z.write(os.path.join(work, "mimetype"), "mimetype", compress_type=zipfile.ZIP_STORED) # Required for EPUB
             for r, _, fls in os.walk(work):
                 for fl in fls:
                     if fl == "mimetype": continue

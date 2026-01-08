@@ -2,8 +2,8 @@ fastapi
 uvicorn
 python-multipart
 pytesseract
-pillow
-groq
-python-dotenv
 opencv-python-headless
+groq>=0.5.0
+python-dotenv
+pillow
 numpy
