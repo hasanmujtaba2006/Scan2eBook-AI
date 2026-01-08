@@ -5,7 +5,6 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 from groq import Groq
-# New Powerful OCR Engine
 from paddleocr import PaddleOCR
 
 app = FastAPI()
@@ -21,8 +20,11 @@ app.add_middleware(
 
 # --- GLOBAL INITIALIZATION ---
 print("Loading PaddleOCR Model... (This takes 10s on first run)")
-# FIX: Removed 'show_log=False' because it is not supported in new version
-ocr_engine = PaddleOCR(use_angle_cls=True, lang='ur', use_gpu=False)
+
+# FIX: Removed 'use_gpu' and 'show_log'. Only keeping essential params.
+# Paddle will automatically use CPU since GPU is not available.
+ocr_engine = PaddleOCR(use_angle_cls=True, lang='ur') 
+
 print("PaddleOCR Model Ready!")
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
@@ -47,6 +49,7 @@ async def process_page(file: UploadFile = File(...)):
         # 4. Extract Text
         extracted_text = ""
         if result and result[0]:
+            # Join text cleanly
             extracted_text = "\n".join([line[1][0] for line in result[0]])
 
         if not extracted_text.strip():
