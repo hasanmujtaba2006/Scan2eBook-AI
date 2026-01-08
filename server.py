@@ -30,7 +30,7 @@ async def process_page(file: UploadFile = File(...)):
     
     # AI Cleaning using Groq
     completion = client.chat.completions.create(
-        model="llama3-8b-8192",
+        model="llama-3.1-8b-instant",
         messages=[
             {"role": "system", "content": "You are an expert Urdu editor. Fix OCR errors in the following Urdu text. Keep it original, just fix spelling/formatting."},
             {"role": "user", "content": raw_text}
