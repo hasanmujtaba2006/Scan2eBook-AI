@@ -5,11 +5,14 @@ const API_BASE_URL = "https://hasanmujtaba-scan2ebook-ai.hf.space";
 
 function App() {
   const [theme, setTheme] = useState('dark'); 
-  const [language, setLanguage] = useState('ur'); // 'ur' or 'en'
+  const [language, setLanguage] = useState('ur'); 
   
   const [file, setFile] = useState(null);
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
+  
+  // ✅ NEW: Timer State
+  const [timer, setTimer] = useState(0);
   
   const [pages, setPages] = useState([]);
   const [bookTitle, setBookTitle] = useState("");
@@ -23,6 +26,21 @@ function App() {
   useEffect(() => {
     document.body.setAttribute('data-theme', theme);
   }, [theme]);
+
+  // ✅ NEW: Timer Logic (Auto-start/stop)
+  useEffect(() => {
+    let interval;
+    if (loading) {
+      setTimer(0); // Reset to 0 start
+      interval = setInterval(() => {
+        setTimer((prev) => prev + 1);
+      }, 1000); // Add 1 second every 1000ms
+    } else {
+      clearInterval(interval); // Stop timer when done
+      setTimer(0);
+    }
+    return () => clearInterval(interval); // Cleanup
+  }, [loading]);
 
   const handleFileSelect = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -120,7 +138,6 @@ function App() {
         </button>
       </header>
 
-      {/* Language Selector (Updated to India) */}
       <div className="language-selector">
         <button 
           className={`lang-btn ${language === 'ur' ? 'active' : ''}`} 
@@ -154,8 +171,9 @@ function App() {
         </p>
       </div>
 
+      {/* ✅ NEW: Button Text updates with Timer */}
       <button className="primary-btn" onClick={handleProcess} disabled={loading}>
-        {loading ? "Scanning..." : "✨ Start Magic Scan"}
+        {loading ? `⏳ Scanning... (${timer}s)` : "✨ Start Magic Scan"}
       </button>
 
       <textarea 
