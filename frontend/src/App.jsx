@@ -4,7 +4,7 @@ import './App.css';
 const API_BASE_URL = "https://hasanmujtaba-scan2ebook-ai.hf.space";
 
 function App() {
-  const [theme, setTheme] = useState('light');
+  const [theme, setTheme] = useState('dark'); // Default to dark looks better
   const [language, setLanguage] = useState('ur'); // 'ur' or 'en'
   
   const [file, setFile] = useState(null);
@@ -36,7 +36,7 @@ function App() {
     
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("language", language); // Send selected language
+    formData.append("language", language);
 
     try {
       const response = await fetch(`${API_BASE_URL}/process-page`, {
@@ -79,20 +79,10 @@ function App() {
           <meta charset="utf-8">
           <title>${title}</title>
           <style>
-            body { 
-              font-family: 'Segoe UI', sans-serif; 
-              padding: 40px; 
-              max-width: 800px; 
-              margin: 0 auto; 
-              direction: ${isRtl ? 'rtl' : 'ltr'}; 
-              text-align: ${isRtl ? 'right' : 'left'}; 
-              background: #f9f9f9; 
-            }
+            body { font-family: sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; direction: ${isRtl ? 'rtl' : 'ltr'}; text-align: ${isRtl ? 'right' : 'left'}; background: #f9f9f9; }
             .cover { text-align: center; padding: 100px 20px; background: white; border: 5px double #4f46e5; margin-bottom: 50px; page-break-after: always; }
             .index { background: white; padding: 40px; margin-bottom: 50px; border: 1px solid #ddd; page-break-after: always; }
             .page { background: white; padding: 40px; margin-bottom: 30px; border: 1px solid #ddd; border-radius: 8px; page-break-after: always; }
-            h1 { color: #4f46e5; }
-            p { font-size: 1.3rem; line-height: 1.8; }
           </style>
         </head>
         <body>
@@ -123,20 +113,21 @@ function App() {
 
   return (
     <div className="App">
+      {/* 1. Header Area */}
       <header className="header">
         <h1>Scan2Ebook AI</h1>
-        <button className="theme-toggle" onClick={toggleTheme}>
+        <button className="theme-toggle" onClick={toggleTheme} title="Switch Theme">
           {theme === 'light' ? '🌙' : '☀️'}
         </button>
       </header>
 
-      {/* Language Toggle */}
+      {/* 2. Language Selector (Visible Buttons) */}
       <div className="language-selector">
         <button 
           className={`lang-btn ${language === 'ur' ? 'active' : ''}`} 
           onClick={() => setLanguage('ur')}
         >
-          🇺pk Urdu
+          🇵🇰 Urdu
         </button>
         <button 
           className={`lang-btn ${language === 'en' ? 'active' : ''}`} 
@@ -146,6 +137,7 @@ function App() {
         </button>
       </div>
       
+      {/* 3. Inputs (Centered) */}
       <div className="meta-inputs">
         <input className="text-input" type="text" value={bookTitle} onChange={(e) => setBookTitle(e.target.value)} placeholder={language === 'ur' ? "Kitab ka Naam" : "Book Title"} />
         <input className="text-input" type="text" value={authorName} onChange={(e) => setAuthorName(e.target.value)} placeholder={language === 'ur' ? "Musannif" : "Author Name"} />
