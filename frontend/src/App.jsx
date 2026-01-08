@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import './App.css';
 
+// Your backend URL
 const API_BASE_URL = "https://hasanmujtaba-scan2ebook-ai.hf.space";
 
 function App() {
@@ -8,11 +9,11 @@ function App() {
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
   
-  // New States for Book Mode
+  // Book State
   const [pages, setPages] = useState([]);
   const [bookTitle, setBookTitle] = useState("My Urdu Book");
-  const [downloading, setDownloading] = useState(false);
 
+  // Input Refs
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
 
@@ -23,7 +24,7 @@ function App() {
   };
 
   const handleProcess = async () => {
-    if (!file) return alert("Select a photo first!");
+    if (!file) return alert("Please select a file first!");
     setLoading(true);
     
     const formData = new FormData();
@@ -34,61 +35,94 @@ function App() {
         method: 'POST',
         body: formData,
       });
-      if (!response.ok) throw new Error("Backend Error");
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail || "Backend Error");
+      }
+
       const data = await response.json();
       setContent(data.clean);
     } catch (error) {
-      alert("OCR Failed. Is backend running?");
+      console.error(error);
+      alert("OCR Failed: " + error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Add current text to the book list
   const addPage = () => {
     if (!content) return;
     setPages([...pages, content]);
-    setContent(""); // Clear for next page
-    setFile(null); // Reset file
-    alert(`Page ${pages.length + 1} added!`);
+    setContent(""); 
+    setFile(null);
+    alert(`Page ${pages.length + 1} Added!`);
   };
 
-  // Download the final EPUB
-  const downloadEpub = async () => {
-    if (pages.length === 0) return alert("No pages scanned yet!");
-    setDownloading(true);
+  // ✅ NEW: Download Book directly in Browser (No Server Needed)
+  const downloadBook = () => {
+    if (pages.length === 0) return alert("No pages to save!");
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/generate-epub`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: bookTitle, pages: pages }),
-      });
+    // 1. Create simple HTML content with Urdu styling
+    const header = `
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>${bookTitle}</title>
+          <style>
+            body { 
+              font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+              padding: 40px; 
+              max-width: 800px; 
+              margin: 0 auto; 
+              direction: rtl; /* Right to Left for Urdu */
+              text-align: right;
+              background-color: #f9f9f9;
+            }
+            .page { 
+              background: white; 
+              padding: 20px; 
+              margin-bottom: 20px; 
+              border: 1px solid #ddd; 
+              border-radius: 8px; 
+            }
+            h1 { text-align: center; color: #4f46e5; }
+            h2 { color: #666; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+            p { font-size: 1.2rem; line-height: 1.8; white-space: pre-wrap; }
+          </style>
+        </head>
+        <body>
+          <h1>${bookTitle}</h1>
+    `;
 
-      if (!response.ok) throw new Error("Download Failed");
+    const bodyContent = pages.map((pageText, index) => `
+      <div class="page">
+        <h2>Page ${index + 1}</h2>
+        <p>${pageText}</p>
+      </div>
+    `).join("");
 
-      // Handle the file blob
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${bookTitle}.epub`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    } catch (error) {
-      console.error(error);
-      alert("Failed to create eBook.");
-    } finally {
-      setDownloading(false);
-    }
+    const footer = `</body></html>`;
+    const fullContent = header + bodyContent + footer;
+
+    // 2. Create a Blob (File) from the text
+    const blob = new Blob([fullContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+
+    // 3. Trigger Download
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${bookTitle}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
     <div className="App">
       <h1>📱 Scan2Ebook AI</h1>
-
-      {/* Book Title Input */}
+      
       <input 
         className="title-input"
         type="text" 
@@ -96,7 +130,7 @@ function App() {
         onChange={(e) => setBookTitle(e.target.value)}
         placeholder="Enter Book Title"
       />
-      
+
       <div className="upload-container">
         {/* Hidden Inputs */}
         <input type="file" accept="image/*" capture="environment" ref={cameraInputRef} style={{ display: 'none' }} onChange={handleFileSelect} />
@@ -113,24 +147,24 @@ function App() {
         {loading ? "Processing..." : "✨ Scan Page"}
       </button>
 
-      {/* Editor Area */}
+      {/* Editor */}
       <textarea 
         className="editor-box"
         value={content} 
-        onChange={(e) => setContent(e.target.value)} // User can edit text
+        onChange={(e) => setContent(e.target.value)}
         dir="rtl" 
         placeholder="Scanned text will appear here..."
       />
 
-      {/* Book Actions */}
+      {/* Actions */}
       <div className="book-actions">
         <button className="secondary-btn" onClick={addPage} disabled={!content}>
-          ➕ Add Page to Book ({pages.length})
+          ➕ Add Page ({pages.length})
         </button>
         
         {pages.length > 0 && (
-          <button className="download-btn" onClick={downloadEpub} disabled={downloading}>
-            {downloading ? "Building..." : "📚 Download EPUB"}
+          <button className="download-btn" onClick={downloadBook}>
+            💾 Download Book (HTML)
           </button>
         )}
       </div>
