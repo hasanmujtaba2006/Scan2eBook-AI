@@ -1,12 +1,23 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import './App.css';
 
+// Your backend URL
 const API_BASE_URL = "https://hasanmujtaba-scan2ebook-ai.hf.space";
 
 function App() {
   const [file, setFile] = useState(null);
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // References to hidden inputs
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
+
+  const handleFileSelect = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+    }
+  };
 
   const handleProcess = async () => {
     if (!file) return alert("Please select or take a photo first!");
@@ -31,7 +42,7 @@ function App() {
       setContent(data.clean);
     } catch (error) {
       console.error("Connection Error:", error);
-      alert("Error processing image. Is the Backend running?");
+      alert("Error processing image. Check your internet or backend.");
     } finally {
       setLoading(false);
     }
@@ -42,14 +53,44 @@ function App() {
       <h1>📱 Scan2Ebook AI</h1>
       
       <div className="upload-container">
-        {/* capture हटा दिया गया है ताकि गैलरी का ऑप्शन भी आए */}
+        {/* Hidden Input for Camera (Force Camera) */}
         <input 
           type="file" 
           accept="image/*" 
-          onChange={(e) => setFile(e.target.files[0])} 
+          capture="environment"
+          ref={cameraInputRef}
+          style={{ display: 'none' }}
+          onChange={handleFileSelect}
         />
-        <p style={{marginTop: '10px', color: '#666'}}>
-          {file ? `Selected: ${file.name}` : "Choose a file or take a photo"}
+
+        {/* Hidden Input for Gallery (Standard Picker) */}
+        <input 
+          type="file" 
+          accept="image/*" 
+          ref={galleryInputRef}
+          style={{ display: 'none' }}
+          onChange={handleFileSelect}
+        />
+
+        {/* Custom Buttons */}
+        <div className="button-group">
+          <button 
+            className="action-btn camera-btn" 
+            onClick={() => cameraInputRef.current.click()}
+          >
+            📸 Take Photo
+          </button>
+          
+          <button 
+            className="action-btn gallery-btn" 
+            onClick={() => galleryInputRef.current.click()}
+          >
+            🖼️ Open Gallery
+          </button>
+        </div>
+
+        <p style={{marginTop: '15px', color: '#666', fontWeight: 'bold'}}>
+          {file ? `✅ Selected: ${file.name}` : "No image selected"}
         </p>
       </div>
 
