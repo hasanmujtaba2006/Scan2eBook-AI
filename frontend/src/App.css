@@ -1,140 +1,48 @@
-:root {
-  --primary-color: #4f46e5;
-  --secondary-color: #818cf8;
-  --bg-color: #f3f4f6;
-  --text-color: #1f2937;
-  --camera-btn: #10b981; /* Green for Camera */
-  --gallery-btn: #f59e0b; /* Orange for Gallery */
-}
-
-body {
-  background-color: var(--bg-color);
-  color: var(--text-color);
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  margin: 0;
-  padding: 20px;
-}
-
-.App {
-  max-width: 800px;
-  margin: 0 auto;
-  background: white;
-  padding: 30px;
-  border-radius: 15px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-}
-
-h1 {
-  text-align: center;
-  color: var(--primary-color);
-  margin-bottom: 30px;
-}
-
-.upload-container {
-  border: 2px dashed var(--secondary-color);
-  padding: 30px;
-  text-align: center;
-  border-radius: 10px;
+/* Add these to your App.css */
+.title-input {
+  width: 100%;
+  padding: 10px;
   margin-bottom: 20px;
-  background-color: #fafafa;
+  font-size: 1.2rem;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  text-align: center;
 }
 
-/* Container for the two new buttons */
-.button-group {
-  display: flex;
-  gap: 15px;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-/* Style for Camera and Gallery buttons */
-.action-btn {
-  padding: 12px 24px;
-  border: none;
-  border-radius: 8px;
-  color: white;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: transform 0.2s, opacity 0.2s;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.action-btn:active {
-  transform: scale(0.95);
-}
-
-.camera-btn {
-  background-color: var(--camera-btn);
-}
-
-.camera-btn:hover {
-  background-color: #059669;
-}
-
-.gallery-btn {
-  background-color: var(--gallery-btn);
-}
-
-.gallery-btn:hover {
-  background-color: #d97706;
-}
-
-/* Main Process Button */
-.primary-btn {
+.editor-box {
+  margin-top: 20px;
   width: 100%;
   padding: 15px;
-  background-color: var(--primary-color);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 1.1rem;
-  font-weight: bold;
-  cursor: pointer;
-  margin-top: 10px;
-  transition: background-color 0.2s;
-}
-
-.primary-btn:hover:not(:disabled) {
-  background-color: #4338ca;
-}
-
-.primary-btn:disabled {
-  background-color: #a5a5a5;
-  cursor: not-allowed;
-}
-
-.output-box {
-  margin-top: 30px;
-}
-
-textarea {
-  width: 100%;
-  padding: 15px;
+  min-height: 200px;
   border: 1px solid #d1d5db;
   border-radius: 8px;
-  font-family: 'Noto Nastaliq Urdu', 'Arial', sans-serif;
+  font-family: 'Noto Nastaliq Urdu', sans-serif;
   font-size: 1.2rem;
-  line-height: 1.6;
-  resize: vertical;
-  box-sizing: border-box;
 }
 
-/* Loading Spinner */
-.loader {
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid var(--primary-color);
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  animation: spin 1s linear infinite;
-  display: inline-block;
-  margin-right: 10px;
+.book-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
 }
 
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+.secondary-btn {
+  padding: 15px;
+  background-color: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.download-btn {
+  padding: 15px;
+  background-color: #10b981; /* Green */
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
 }

@@ -1,8 +1,7 @@
 fastapi
 uvicorn
-groq
-pytesseract
-pillow
-opencv-python-headless
 python-multipart
-pydantic==2.10.6
+pytesseract
+Pillow
+groq
+EbookLib
