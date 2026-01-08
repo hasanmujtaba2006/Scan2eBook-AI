@@ -1,16 +1,157 @@
-.container { background: #121212; color: white; min-height: 100vh; display: flex; justify-content: center; padding: 20px; }
-.card { background: #1e1e1e; padding: 25px; border-radius: 12px; width: 100%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-.text-input, .file-input { width: 100%; padding: 10px; margin: 10px 0; background: #2a2a2a; border: 1px solid #444; color: white; border-radius: 6px; }
-
-.urdu-editor { 
-  width: 100%; height: 200px; background: #2a2a2a; color: white; border: 1px solid #646cff; 
-  padding: 10px; font-size: 1.2rem; line-height: 1.8; margin: 10px 0; border-radius: 8px; 
+:root {
+  --primary: #646cff;
+  --bg: #121212;
+  --card: #1e1e1e;
+  --text: #ffffff;
 }
 
-.pri-btn { background: #646cff; width: 100%; padding: 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; color: white; }
-.sec-btn { background: transparent; border: 1px solid #646cff; color: #646cff; width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 6px; cursor: pointer; }
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--bg);
+  color: var(--text);
+}
 
-.summary-box { background: #252525; padding: 15px; border-radius: 8px; border-right: 4px solid #646cff; margin: 15px 0; font-size: 0.9rem; text-align: right; }
-.bar { background: #333; height: 10px; border-radius: 5px; overflow: hidden; margin-top: 15px; }
-.fill { background: #646cff; height: 100%; transition: width 0.3s; }
-.dl-btn { display: block; text-align: center; background: #4caf50; padding: 12px; border-radius: 6px; color: white; text-decoration: none; font-weight: bold; }
+.container {
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+  min-height: 100vh;
+}
+
+.card {
+  background: var(--card);
+  padding: 25px;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+h1 { text-align: center; font-size: 1.8rem; margin-bottom: 25px; color: var(--primary); }
+
+.text-input, .file-input {
+  width: 100%;
+  padding: 12px;
+  margin: 10px 0;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  color: white;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+/* File Chip Styling */
+.file-preview-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 15px 0;
+}
+
+.file-chip {
+  background: #333;
+  padding: 6px 12px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #444;
+  font-size: 0.8rem;
+}
+
+.delete-btn {
+  background: #ff4d4d;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+}
+
+/* Urdu Editor */
+.urdu-editor {
+  width: 100%;
+  height: 220px;
+  background: #2a2a2a;
+  color: white;
+  border: 1px solid var(--primary);
+  padding: 12px;
+  font-size: 1.25rem;
+  line-height: 1.8;
+  margin: 10px 0;
+  border-radius: 8px;
+  resize: vertical;
+}
+
+.hint { font-size: 0.8rem; color: #888; margin-bottom: 15px; }
+
+.pri-btn {
+  background: var(--primary);
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  color: white;
+  transition: opacity 0.2s;
+}
+
+.sec-btn {
+  background: transparent;
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* Progress & Success */
+.loader { text-align: center; margin: 20px 0; }
+.bar { background: #333; height: 10px; border-radius: 5px; overflow: hidden; margin: 10px 0; }
+.fill { background: var(--primary); height: 100%; transition: width 0.3s; }
+
+.summary-box {
+  background: #252525;
+  padding: 15px;
+  border-radius: 8px;
+  border-right: 4px solid var(--primary);
+  margin: 20px 0;
+  font-size: 0.95rem;
+  text-align: right;
+  line-height: 1.6;
+}
+
+.dl-btn {
+  display: block;
+  text-align: center;
+  background: #4caf50;
+  padding: 14px;
+  border-radius: 8px;
+  color: white;
+  text-decoration: none;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.reset-btn { background: none; border: 1px solid #444; color: #888; width: 100%; padding: 10px; border-radius: 8px; cursor: pointer; }
+
+.spinner {
+  width: 30px;
+  height: 30px;
+  border: 3px solid #333;
+  border-top: 3px solid var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 10px;
+}
+
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
